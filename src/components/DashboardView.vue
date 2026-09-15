@@ -167,29 +167,11 @@ const recentDocuments = ref([
 
         <a
           href="#"
-          @click.prevent="activeMenu = 'Despachos'"
-          :class="['menu-item', { active: activeMenu === 'Despachos' }]"
+          @click.prevent="activeMenu = 'Usuários'"
+          :class="['menu-item', { active: activeMenu === 'Usuários' }]"
         >
-          <Package :size="18" class="menu-icon" />
-          <span>Despachos</span>
-        </a>
-
-        <a
-          href="#"
-          @click.prevent="activeMenu = 'Malotes'"
-          :class="['menu-item', { active: activeMenu === 'Malotes' }]"
-        >
-          <Mail :size="18" class="menu-icon" />
-          <span>Malotes Digitais</span>
-        </a>
-
-        <a
-          href="#"
-          @click.prevent="activeMenu = 'Projetos'"
-          :class="['menu-item', { active: activeMenu === 'Projetos' }]"
-        >
-          <FolderGit2 :size="18" class="menu-icon" />
-          <span>Projetos</span>
+          <UserCheck :size="18" class="menu-icon" />
+          <span>Usuários</span>
         </a>
       </nav>
 
@@ -236,23 +218,6 @@ const recentDocuments = ref([
             <span>AI Command Assistant</span>
           </button>
 
-          <button
-            type="button"
-            @click="activeTab = 'Smart Search'"
-            :class="['tab-btn', { active: activeTab === 'Smart Search' }]"
-          >
-            <Search :size="16" />
-            <span>Smart Search</span>
-          </button>
-
-          <button
-            type="button"
-            @click="activeTab = 'Prompt Console'"
-            :class="['tab-btn', { active: activeTab === 'Prompt Console' }]"
-          >
-            <Settings :size="16" />
-            <span>Prompt Console</span>
-          </button>
         </div>
 
         <!-- Chat Stream Area -->
