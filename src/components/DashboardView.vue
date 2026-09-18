@@ -167,6 +167,11 @@ const recentDocuments = ref([
 
         <a
           href="#"
+          @click.prevent="activeMenu = 'Usuários'"
+          :class="['menu-item', { active: activeMenu === 'Usuários' }]"
+        >
+          <UserCheck :size="18" class="menu-icon" />
+          <span>Usuários</span>
           @click.prevent="activeMenu = 'Despachos'"
           :class="['menu-item', { active: activeMenu === 'Despachos' }]"
         >
