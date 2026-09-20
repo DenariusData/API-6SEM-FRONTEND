@@ -251,6 +251,40 @@ const getMenuIcon = (menuTitle) => {
           href="#"
           @click.prevent="item === 'Gestão de Usuários' ? (showUserModal = true) : (activeMenu = item)"
           :class="['menu-item', { active: activeMenu === item }]"
+          @click.prevent="activeMenu = 'Inicio'"
+          :class="['menu-item', { active: activeMenu === 'Inicio' }]"
+        >
+          <Home :size="18" class="menu-icon" />
+          <span>Início</span>
+        </a>
+
+        <a
+          href="#"
+          @click.prevent="activeMenu = 'Pesquisa'"
+          :class="['menu-item', { active: activeMenu === 'Pesquisa' }]"
+        >
+          <Search :size="18" class="menu-icon" />
+          <span>Pesquisa Avançada</span>
+        </a>
+
+        <a
+          href="#"
+          @click.prevent="activeMenu = 'Documentos'"
+          :class="['menu-item', { active: activeMenu === 'Documentos' }]"
+        >
+          <FileText :size="18" class="menu-icon" />
+          <span>Documentos</span>
+        </a>
+
+        <a
+          href="#"
+          @click.prevent="activeMenu = 'Usuários'"
+          :class="['menu-item', { active: activeMenu === 'Usuários' }]"
+        >
+          <UserCheck :size="18" class="menu-icon" />
+          <span>Usuários</span>
+          @click.prevent="activeMenu = 'Despachos'"
+          :class="['menu-item', { active: activeMenu === 'Despachos' }]"
         >
           <component :is="getMenuIcon(item)" :size="18" class="menu-icon" />
           <span>{{ item }}</span>
