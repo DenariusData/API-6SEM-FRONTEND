@@ -1,5 +1,5 @@
 <script setup>
-  import { ref, computed } from 'vue';
+  import { ref, computed, nextTick } from 'vue';
   import logoUrl from '@/assets/logo.png';
   import {
     Home,
@@ -21,6 +21,8 @@
     Tag,
     CheckCircle2,
     AlertCircle,
+    Loader2,
+    BookOpen,
   } from 'lucide-vue-next';
 
   const props = defineProps({
@@ -121,61 +123,227 @@
     newUserMatricula.value = '';
   };
 
+  // Interação Q&A (IA com Fontes e Mocking Avançado)
   const aiInputQuery = ref('');
+  const isProcessing = ref(false);
+  const chatContainerRef = ref(null);
+
   const chatMessages = ref([
     {
       type: 'user',
       text: 'Quais os limites de stress para a asa do Gripen NG?',
+      timestamp: '14:30',
     },
     {
       type: 'ai',
-      text: 'Identifiquei 3 documentos altamente relevantes para a sua análise de trem de pouso e stress estrutural na asa do Gripen NG. Recomendo focar no primeiro certificado de conformidade.',
-      documents: [
+      text: 'Com base nas especificações estruturais e relatórios de aeroestrutura da Akaer, o limite máximo de stress estático para a asa do Gripen NG em manobra supersônica (9g) é de 450 MPa. Para fadiga cíclica contínua, o limite seguro recomendado é de 310 MPa.',
+      timestamp: '14:30',
+      sources: [
         {
-          category: 'Aeroestrutura',
-          title: 'Stress Test Asa Esquerda - Gripen NG',
+          documentName: 'Stress Test e Cargas Estruturais Asa Esquerda - Gripen NG',
           code: 'OI-2026-A8',
+          revision: 'Rev. 04',
+          page: 'Pág. 42',
+          category: 'Aeroestrutura',
         },
         {
-          category: 'Sistemas Críticos',
-          title: 'Relatório de Empuxo Estrutural',
-          code: 'DO-4820-F4',
-        },
-        {
-          category: 'Sistemas Críticos',
-          title: 'Certificado de Análise Estrutural',
+          documentName: 'Certificado de Análise Estrutural do Trem de Pouso',
           code: 'CA-4028-E',
+          revision: 'Rev. B',
+          page: 'Pág. 15',
+          category: 'Sistemas Críticos',
+        },
+        {
+          documentName: 'Manual de Especificação de Liga de Titânio T6',
+          code: 'ES-1020-T',
+          revision: 'Rev. 02',
+          page: 'Pág. 18',
+          category: 'Materiais',
         },
       ],
     },
   ]);
 
-  const handleSendAiMessage = () => {
-    if (!aiInputQuery.value.trim()) return;
+  // Base de Dados Mockada de Perguntas e Respostas com Fontes Detalhadas
+  const mockKnowledgeBase = [
+    {
+      keywords: ['stress', 'asa', 'gripen', 'limite', 'carga', 'pressao'],
+      text: 'Com base nas especificações estruturais e relatórios de aeroestrutura da Akaer, o limite máximo de stress estático para a asa do Gripen NG em manobra supersônica (9g) é de 450 MPa. Para fadiga cíclica contínua, o limite seguro recomendado é de 310 MPa.',
+      sources: [
+        {
+          documentName: 'Stress Test e Cargas Estruturais Asa Esquerda - Gripen NG',
+          code: 'OI-2026-A8',
+          revision: 'Rev. 04',
+          page: 'Pág. 42',
+          category: 'Aeroestrutura',
+        },
+        {
+          documentName: 'Certificado de Análise Estrutural do Trem de Pouso',
+          code: 'CA-4028-E',
+          revision: 'Rev. B',
+          page: 'Pág. 15',
+          category: 'Sistemas Críticos',
+        },
+      ],
+    },
+    {
+      keywords: ['manutenção', 'manutencao', 'turbina', 'ge880', 'ge-880', 'ge', 'motor'],
+      text: 'O plano de manutenção preventiva para as turbinas GE-880 estabelece inspeções boroscópicas completas a cada 250 horas de operação e substituição de selos hidráulicos a cada 1.000 horas de voo.',
+      sources: [
+        {
+          documentName: 'Plano de Manutenção Preventiva Turbinas GE-880',
+          code: 'PM-9011-M',
+          revision: 'Rev. 03',
+          page: 'Pág. 14',
+          category: 'Manutenção',
+        },
+        {
+          documentName: 'Manual de Operação de Aviônicos e Propulsão',
+          code: 'OI-9621-X',
+          revision: 'Rev. 05',
+          page: 'Pág. 88',
+          category: 'Sistemas Críticos',
+        },
+      ],
+    },
+    {
+      keywords: ['despacho', 'malote', 'hangar', 'sjc', 'transporte', 'logística', 'logistica'],
+      text: 'Para expedição de componentes aeroespaciais no Hangar 2 SJC, o protocolo exige empacotamento sob atmosfera inerte (Nitrogênio N2) e selo de conformidade emitido pela Garantia da Qualidade.',
+      sources: [
+        {
+          documentName: 'Instruções de Despacho de Asa - SJC Hangar 2',
+          code: 'DS-8920-L',
+          revision: 'Rev. 01',
+          page: 'Pág. 08',
+          category: 'Logística',
+        },
+        {
+          documentName: 'Diretriz de Segurança do Transporte Aeroespacial',
+          code: 'DS-1002-S',
+          revision: 'Rev. 02',
+          page: 'Pág. 21',
+          category: 'Segurança',
+        },
+      ],
+    },
+    {
+      keywords: ['qualidade', 'conformidade', 'norma', 'iso', 'as9100', 'auditoria'],
+      text: 'A diretriz de conformidade AS9100D exige verificação de rastreabilidade de lote para 100% dos componentes estruturais de classe primária antes do envio para a linha de montagem.',
+      sources: [
+        {
+          documentName: 'Relatório de Auditoria e Conformidade Qualidade',
+          code: 'AC-3099-Q',
+          revision: 'Rev. 02',
+          page: 'Pág. 33',
+          category: 'Qualidade',
+        },
+        {
+          documentName: 'Manual de Processos da Qualidade Aeroespacial',
+          code: 'MQ-0010-A',
+          revision: 'Rev. 04',
+          page: 'Pág. 05',
+          category: 'Qualidade',
+        },
+      ],
+    },
+  ];
 
+  const generateMockAiResponse = (query) => {
+    const qLower = query.toLowerCase();
+    const match = mockKnowledgeBase.find((item) => item.keywords.some((kw) => qLower.includes(kw)));
+
+    if (match) {
+      return match;
+    }
+
+    return {
+      text: `Analisamos sua consulta sobre "${query}". Com base nos documentos e dados técnicos da Akaer, identificamos as seguintes diretrizes e especificações normativas aplicáveis.`,
+      sources: [
+        {
+          documentName: 'Manual Geral de Especificações Técnicas e Tolerância',
+          code: 'OI-9621-X',
+          revision: 'Rev. 03',
+          page: 'Pág. 27',
+          category: 'Aeroestrutura',
+        },
+        {
+          documentName: 'Diretriz Geral de Garantia da Qualidade e Conformidade',
+          code: 'DQ-1002-Q',
+          revision: 'Rev. 02',
+          page: 'Pág. 15',
+          category: 'Qualidade',
+        },
+      ],
+    };
+  };
+
+  const scrollToBottom = () => {
+    nextTick(() => {
+      if (chatContainerRef.value) {
+        chatContainerRef.value.scrollTop = chatContainerRef.value.scrollHeight;
+      }
+    });
+  };
+
+  const handleSendAiMessage = async () => {
+    const queryText = aiInputQuery.value.trim();
+
+    // Critério de aceite: Pergunta vazia não é enviada
+    if (!queryText || isProcessing.value) return;
+
+    const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    // Adiciona a pergunta do usuário
     chatMessages.value.push({
       type: 'user',
-      text: aiInputQuery.value,
+      text: queryText,
+      timestamp: timeString,
     });
 
     aiInputQuery.value = '';
+    isProcessing.value = true;
+    scrollToBottom();
 
+    try {
+      // Tentativa opcional de integrar com backend se estiver rodando
+      const response = await fetch('http://localhost:8000/api/ai/query/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: queryText }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        chatMessages.value.push({
+          type: 'ai',
+          text: data.answer || data.text,
+          sources: data.sources || [],
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        });
+        isProcessing.value = false;
+        scrollToBottom();
+        return;
+      }
+    } catch {
+      // Se backend não responder, faz fallback gracioso para mock
+    }
+
+    // Simula tempo de resposta da IA (1.5 segundos) com estado de processando ativo
     setTimeout(() => {
+      const mockAnswer = generateMockAiResponse(queryText);
       chatMessages.value.push({
         type: 'ai',
-        text: 'Identifiquei 3 documentos altamente relevantes para a sua análise de trem de pouso e stress estrutural na asa do Gripen NG. Recomendo focar no primeiro certificado de conformidade.',
-        documents: [
-          {
-            category: 'Aeroestrutura',
-            title: 'Manual de Tolerância e Resistência',
-            code: 'OI-9621-X',
-          },
-        ],
+        text: mockAnswer.text,
+        sources: mockAnswer.sources,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       });
-    }, 1000);
+      isProcessing.value = false;
+      scrollToBottom();
+    }, 1500);
   };
 
   const clearChat = () => {
+    if (isProcessing.value) return;
     chatMessages.value = [];
   };
 
@@ -407,7 +575,7 @@
         </div>
 
         <!-- Chat Stream Area -->
-        <div class="chat-container">
+        <div ref="chatContainerRef" class="chat-container">
           <div
             v-for="(msg, index) in chatMessages"
             :key="index"
@@ -416,6 +584,7 @@
             <!-- Pergunta do Usuário -->
             <div v-if="msg.type === 'user'" class="user-bubble">
               <span>{{ msg.text }}</span>
+              <span v-if="msg.timestamp" class="bubble-timestamp">{{ msg.timestamp }}</span>
             </div>
 
             <!-- Resposta da IA -->
@@ -426,8 +595,36 @@
               <div class="ai-response-content">
                 <p class="ai-text">{{ msg.text }}</p>
 
-                <!-- Cards de Documentos Citados -->
-                <div v-if="msg.documents && msg.documents.length" class="cited-docs-grid">
+                <!-- Fontes Consultadas (Critério: Nome do Documento, Revisão e Página logo abaixo) -->
+                <div v-if="msg.sources && msg.sources.length" class="sources-container">
+                  <div class="sources-title-row">
+                    <BookOpen :size="14" class="sources-icon" />
+                    <span>Fontes e Referências ({{ msg.sources.length }})</span>
+                  </div>
+                  <div class="sources-grid">
+                    <div v-for="(src, sIdx) in msg.sources" :key="sIdx" class="source-card">
+                      <div class="source-card-header">
+                        <span class="source-category-tag">{{
+                          src.category || 'Documento Técnico'
+                        }}</span>
+                        <span v-if="src.code" class="source-code-tag">{{ src.code }}</span>
+                      </div>
+                      <h5 class="source-doc-name">{{ src.documentName || src.title }}</h5>
+                      <div class="source-details-row">
+                        <span class="source-meta-item">
+                          <strong>Revisão:</strong> {{ src.revision || 'Rev. 01' }}
+                        </span>
+                        <span class="source-meta-dot">•</span>
+                        <span class="source-meta-item">
+                          <strong>Página:</strong> {{ src.page || 'Pág. 1' }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Suporte a documentos simplificados Legados caso existam -->
+                <div v-else-if="msg.documents && msg.documents.length" class="cited-docs-grid">
                   <div v-for="(doc, dIdx) in msg.documents" :key="dIdx" class="cited-doc-card">
                     <span class="doc-cat-tag">{{ doc.category }}</span>
                     <h5 class="cited-doc-title">{{ doc.title }}</h5>
@@ -437,21 +634,51 @@
               </div>
             </div>
           </div>
+
+          <!-- Indicador Visual: Tela mostra que está processando enquanto a resposta não chega -->
+          <div v-if="isProcessing" class="chat-bubble-wrapper ai processing-wrapper">
+            <div class="ai-response-box processing-box">
+              <div class="ai-icon-circle pulsing-icon">
+                <Sparkles :size="16" />
+              </div>
+              <div class="ai-response-content">
+                <div class="processing-status-card">
+                  <Loader2 :size="18" class="spin-icon" />
+                  <span>Consultando base de conhecimento e gerando resposta com fontes...</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Input Bar Inferior -->
         <div class="ai-input-bar">
-          <button type="button" class="btn-clear" title="Limpar mensagens" @click="clearChat">
+          <button
+            type="button"
+            class="btn-clear"
+            title="Limpar histórico de chat"
+            :disabled="isProcessing"
+            @click="clearChat"
+          >
             <Trash2 :size="18" />
           </button>
           <input
             v-model="aiInputQuery"
-            placeholder="Digite sua mensagem para o assistente de engenharia..."
+            type="text"
+            placeholder="Digite sua pergunta técnica (ex: limites de stress, manuais de manutenção)..."
             class="ai-input"
+            :disabled="isProcessing"
             @keyup.enter="handleSendAiMessage"
           />
-          <button type="button" class="btn-send-ai" @click="handleSendAiMessage">
-            <Send :size="16" />
+          <button
+            type="button"
+            class="btn-send-ai"
+            :disabled="!aiInputQuery.trim() || isProcessing"
+            @click="handleSendAiMessage"
+          >
+            <Loader2 v-if="isProcessing" :size="16" class="spin-icon" />
+            <Send v-else :size="16" />
+            <span class="btn-send-label">{{ isProcessing ? 'Processando' : 'Enviar' }}</span>
           </button>
         </div>
       </section>
@@ -878,6 +1105,15 @@
     border-radius: 14px 14px 2px 14px;
     font-size: 0.9rem;
     max-width: 80%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .bubble-timestamp {
+    font-size: 0.68rem;
+    color: rgba(255, 255, 255, 0.75);
+    align-self: flex-end;
   }
 
   .ai-response-box {
@@ -899,11 +1135,159 @@
     flex-shrink: 0;
   }
 
+  .ai-response-content {
+    flex: 1;
+  }
+
   .ai-text {
     font-size: 0.9rem;
     color: #334155;
     line-height: 1.5;
     margin: 0 0 0.75rem 0;
+  }
+
+  /* Fontes e Referências (Logo Abaixo da Resposta) */
+  .sources-container {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px dashed #e2e8f0;
+  }
+
+  .sources-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.6rem;
+  }
+
+  .sources-icon {
+    color: #7e22ce;
+  }
+
+  .sources-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 0.75rem;
+  }
+
+  .source-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-left: 3px solid #7e22ce;
+    padding: 0.65rem 0.85rem;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+  }
+
+  .source-card:hover {
+    background: #ffffff;
+    border-color: #cbd5e1;
+    border-left-color: #6b21a8;
+    box-shadow: 0 2px 8px rgba(126, 34, 206, 0.08);
+  }
+
+  .source-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.35rem;
+  }
+
+  .source-category-tag {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #7e22ce;
+    background: #f3e8ff;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+  }
+
+  .source-code-tag {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #64748b;
+  }
+
+  .source-doc-name {
+    font-size: 0.83rem;
+    font-weight: 600;
+    color: #0f172a;
+    margin: 0 0 0.45rem 0;
+    line-height: 1.35;
+  }
+
+  .source-details-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.75rem;
+    color: #475569;
+    background: #ffffff;
+    padding: 0.3rem 0.55rem;
+    border-radius: 6px;
+    border: 1px solid #f1f5f9;
+  }
+
+  .source-meta-item strong {
+    color: #1e293b;
+    font-weight: 600;
+  }
+
+  .source-meta-dot {
+    color: #cbd5e1;
+  }
+
+  /* Status de Carregamento / Processamento */
+  .processing-wrapper {
+    opacity: 0.95;
+  }
+
+  .processing-status-card {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    background: #f3e8ff;
+    color: #7e22ce;
+    padding: 0.65rem 1rem;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    border: 1px solid #e9d5ff;
+  }
+
+  .spin-icon {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .pulsing-icon {
+    animation: pulse 1.5s infinite;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    50% {
+      transform: scale(1.1);
+      opacity: 0.85;
+    }
   }
 
   .cited-docs-grid {
@@ -953,8 +1337,17 @@
     border: none;
     color: #94a3b8;
     cursor: pointer;
-
     padding: 0.35rem;
+    transition: color 0.2s;
+  }
+
+  .btn-clear:hover:not(:disabled) {
+    color: #ef4444;
+  }
+
+  .btn-clear:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
   }
 
   .ai-input {
@@ -966,6 +1359,11 @@
     color: #0f172a;
   }
 
+  .ai-input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
   .btn-send-ai {
     background: #7e22ce;
     color: #ffffff;
@@ -975,7 +1373,19 @@
     cursor: pointer;
     display: flex;
     align-items: center;
-    justify-content: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+
+  .btn-send-ai:hover:not(:disabled) {
+    background: #6b21a8;
+  }
+
+  .btn-send-ai:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   /* Quick Actions */
