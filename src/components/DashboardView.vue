@@ -1,5 +1,5 @@
 <script setup>
-  import { ref } from 'vue';
+  import { ref, computed } from 'vue';
   import logoUrl from '@/assets/logo.png';
   import {
     Home,
@@ -17,10 +17,109 @@
     ShieldCheck,
     ArrowRight,
     UserCheck,
+    UserPlus,
+    Tag,
+    CheckCircle2,
+    AlertCircle,
   } from 'lucide-vue-next';
 
-  const activeMenu = ref('Inicio');
+  const props = defineProps({
+    currentUser: {
+      type: Object,
+      default: () => ({
+        id: 1,
+        name: 'Carlos Eduardo',
+        email: 'engenharia@akaer.com.br',
+        role: 'Engenharia',
+        matricula: 'AK-90822',
+        cargo: 'Engenheiro Aeroespacial Senior',
+        allowed_menus: [
+          'Início',
+          'Pesquisa Avançada',
+          'Documentos',
+          'Projetos',
+          'AI Command Assistant',
+          'Solicitar OI',
+        ],
+      }),
+    },
+  });
+
+  const activeMenu = ref('Início');
   const activeTab = ref('AI Command Assistant');
+
+  // Modal de Gestão de Usuários (Exclusivo Administrador)
+  const showUserModal = ref(false);
+  const newUserName = ref('');
+  const newUserEmail = ref('');
+  const newUserRole = ref('Engenharia');
+  const newUserMatricula = ref('');
+  const userModalSuccess = ref('');
+  const userModalError = ref('');
+
+  const demoUsersList = ref([
+    {
+      id: 1,
+      name: 'Carlos Eduardo',
+      email: 'engenharia@akaer.com.br',
+      role: 'Engenharia',
+      matricula: 'AK-90822',
+    },
+    {
+      id: 2,
+      name: 'Ana Souza',
+      email: 'qualidade@akaer.com.br',
+      role: 'Qualidade',
+      matricula: 'AK-77401',
+    },
+    {
+      id: 3,
+      name: 'Ricardo Mendes',
+      email: 'admin@akaer.com.br',
+      role: 'Administrador',
+      matricula: 'AK-10001',
+    },
+  ]);
+
+  const handleCreateUser = async () => {
+    userModalSuccess.value = '';
+    userModalError.value = '';
+
+    if (!newUserName.value.trim() || !newUserEmail.value.trim()) {
+      userModalError.value = 'Preencha o nome e o e-mail do novo usuário.';
+      return;
+    }
+
+    const payload = {
+      name: newUserName.value,
+      email: newUserEmail.value,
+      role: newUserRole.value,
+      matricula: newUserMatricula.value || `AK-${Math.floor(10000 + Math.random() * 90000)}`,
+    };
+
+    try {
+      const res = await fetch('http://localhost:8000/api/auth/users/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        demoUsersList.value.push(data.user);
+        userModalSuccess.value = `Usuário ${data.user.name} cadastrado com sucesso!`;
+      } else {
+        demoUsersList.value.push({ ...payload, id: Date.now() });
+        userModalSuccess.value = `Usuário ${payload.name} cadastrado no ambiente de demonstração!`;
+      }
+    } catch {
+      demoUsersList.value.push({ ...payload, id: Date.now() });
+      userModalSuccess.value = `Usuário ${payload.name} cadastrado!`;
+    }
+
+    newUserName.value = '';
+    newUserEmail.value = '';
+    newUserMatricula.value = '';
+  };
 
   const aiInputQuery = ref('');
   const chatMessages = ref([
@@ -59,13 +158,12 @@
       text: aiInputQuery.value,
     });
 
-    const userQuery = aiInputQuery.value;
     aiInputQuery.value = '';
 
     setTimeout(() => {
       chatMessages.value.push({
         type: 'ai',
-        text: `Analisando a sua consulta: "${userQuery}". Os parâmetros de conformidade técnica indicam margem de segurança dentro dos limites operacionais previstos pela norma Akaer-ENG-2026.`,
+        text: 'Identifiquei 3 documentos altamente relevantes para a sua análise de trem de pouso e stress estrutural na asa do Gripen NG. Recomendo focar no primeiro certificado de conformidade.',
         documents: [
           {
             category: 'Aeroestrutura',
@@ -138,6 +236,77 @@
       statusClass: 'status-revision',
     },
   ]);
+
+  // Menus padrão para fallback por perfil caso não venha no objeto
+  const activeUserMenus = computed(() => {
+    if (props.currentUser?.allowed_menus && props.currentUser.allowed_menus.length) {
+      return props.currentUser.allowed_menus;
+    }
+    if (props.currentUser?.role === 'Administrador') {
+      return [
+        'Início',
+        'Pesquisa Avançada',
+        'Documentos',
+        'Projetos',
+        'Despachos',
+        'Malotes Digitais',
+        'Gestão de Usuários',
+        'Importar Arquivos',
+        'Classificar Categorias',
+        'AI Command Assistant',
+      ];
+    } else if (props.currentUser?.role === 'Qualidade') {
+      return [
+        'Início',
+        'Pesquisa Avançada',
+        'Documentos',
+        'Relatórios de Qualidade',
+        'Auditoria & Conformidade',
+      ];
+    } else {
+      return [
+        'Início',
+        'Pesquisa Avançada',
+        'Documentos',
+        'Projetos',
+        'AI Command Assistant',
+        'Solicitar OI',
+      ];
+    }
+  });
+
+  const getMenuIcon = (menuTitle) => {
+    switch (menuTitle) {
+      case 'Início':
+        return Home;
+      case 'Pesquisa Avançada':
+        return Search;
+      case 'Documentos':
+        return FileText;
+      case 'Gestão de Usuários':
+        return UserCheck;
+      case 'Importar Arquivos':
+        return Upload;
+      case 'Classificar Categorias':
+        return Tag;
+      case 'Projetos':
+        return FolderGit2;
+      case 'Despachos':
+        return Package;
+      case 'Malotes Digitais':
+        return Mail;
+      case 'AI Command Assistant':
+        return Sparkles;
+      case 'Relatórios de Qualidade':
+        return FileText;
+      case 'Auditoria & Conformidade':
+        return ShieldCheck;
+      case 'Solicitar OI':
+        return Plus;
+      default:
+        return FileText;
+    }
+  };
 </script>
 
 <template>
@@ -152,72 +321,31 @@
         </div>
       </div>
 
-      <!-- Menu Principal -->
+      <!-- Menu Principal Dinâmico por Perfil -->
       <nav class="sidebar-menu">
         <a
+          v-for="item in activeUserMenus"
+          :key="item"
           href="#"
-          :class="['menu-item', { active: activeMenu === 'Inicio' }]"
-          @click.prevent="activeMenu = 'Inicio'"
+          :class="['menu-item', { active: activeMenu === item }]"
+          @click.prevent="
+            item === 'Gestão de Usuários' ? (showUserModal = true) : (activeMenu = item)
+          "
         >
-          <Home :size="18" class="menu-icon" />
-          <span>Início</span>
-        </a>
-
-        <a
-          href="#"
-          :class="['menu-item', { active: activeMenu === 'Pesquisa' }]"
-          @click.prevent="activeMenu = 'Pesquisa'"
-        >
-          <Search :size="18" class="menu-icon" />
-          <span>Pesquisa Avançada</span>
-        </a>
-
-        <a
-          href="#"
-          :class="['menu-item', { active: activeMenu === 'Documentos' }]"
-          @click.prevent="activeMenu = 'Documentos'"
-        >
-          <FileText :size="18" class="menu-icon" />
-          <span>Documentos</span>
-        </a>
-
-        <a
-          href="#"
-          :class="['menu-item', { active: activeMenu === 'Usuários' }]"
-          @click.prevent="activeMenu = 'Usuários'"
-        >
-          <UserCheck :size="18" class="menu-icon" />
-          <span>Usuários</span>
-          @click.prevent="activeMenu = 'Despachos'" :class="['menu-item', { active: activeMenu ===
-          'Despachos' }]" >
-          <Package :size="18" class="menu-icon" />
-          <span>Despachos</span>
-        </a>
-
-        <a
-          href="#"
-          :class="['menu-item', { active: activeMenu === 'Malotes' }]"
-          @click.prevent="activeMenu = 'Malotes'"
-        >
-          <Mail :size="18" class="menu-icon" />
-          <span>Malotes Digitais</span>
-        </a>
-
-        <a
-          href="#"
-          :class="['menu-item', { active: activeMenu === 'Projetos' }]"
-          @click.prevent="activeMenu = 'Projetos'"
-        >
-          <FolderGit2 :size="18" class="menu-icon" />
-          <span>Projetos</span>
+          <component :is="getMenuIcon(item)" :size="18" class="menu-icon" />
+          <span>{{ item }}</span>
         </a>
       </nav>
 
       <!-- Card Inferior de Credencial Operacional -->
       <div class="sidebar-credential-card">
-        <span class="cred-tag">CREDENCIAL OPERACIONAL</span>
-        <h4 class="cred-level">Nível 3 — Confidencial</h4>
-        <p class="cred-info">Acesso monitorado pelo terminal SJC-22A.</p>
+        <span class="cred-tag"
+          >PERFIL {{ props.currentUser?.role?.toUpperCase() || 'OPERACIONAL' }}</span
+        >
+        <h4 class="cred-level">Nível — {{ props.currentUser?.role || 'Engenharia' }}</h4>
+        <p class="cred-info">
+          Credencial {{ props.currentUser?.matricula || 'AK-90822' }} verificada.
+        </p>
       </div>
     </aside>
 
@@ -226,14 +354,19 @@
       <!-- Header Superior -->
       <header class="top-header">
         <div class="header-titles">
-          <h1 class="page-title">Painel do Operador</h1>
-          <p class="page-subtitle">Bem-vindo de volta, João Silva — Supervisor de Aeroestrutura</p>
+          <h1 class="page-title">Painel — Perfil {{ props.currentUser?.role || 'Engenharia' }}</h1>
+          <p class="page-subtitle">
+            Bem-vindo de volta, {{ props.currentUser?.name || 'Carlos Eduardo' }} —
+            {{ props.currentUser?.cargo || 'Engenheiro' }}
+          </p>
         </div>
 
         <div class="user-profile-badge">
           <div class="user-info">
-            <span class="user-name">João Silva</span>
-            <span class="user-matricula">Matrícula AK-90822</span>
+            <span class="user-name">{{ props.currentUser?.name || 'Carlos Eduardo' }}</span>
+            <span class="user-matricula"
+              >Matrícula {{ props.currentUser?.matricula || 'AK-90822' }}</span
+            >
           </div>
           <div class="user-avatar">
             <UserCheck :size="20" class="avatar-icon" />
@@ -241,8 +374,8 @@
         </div>
       </header>
 
-      <!-- Seção AI Command Assistant -->
-      <section class="ai-assistant-card">
+      <!-- Seção AI Command Assistant (Disponível para Engenharia e Administrador) -->
+      <section v-if="activeUserMenus.includes('AI Command Assistant')" class="ai-assistant-card">
         <!-- Abas da IA -->
         <div class="ai-tabs">
           <button
@@ -313,8 +446,7 @@
           </button>
           <input
             v-model="aiInputQuery"
-            type="text"
-            placeholder="Type AI message..."
+            placeholder="Digite sua mensagem para o assistente de engenharia..."
             class="ai-input"
             @keyup.enter="handleSendAiMessage"
           />
@@ -324,10 +456,60 @@
         </div>
       </section>
 
-      <!-- Ações Rápidas de Operação -->
+      <!-- Ações Rápidas de Operação (Adaptadas por Perfil) -->
       <section class="quick-actions-section">
-        <h3 class="section-label">AÇÕES RÁPIDAS DE OPERAÇÃO</h3>
-        <div class="actions-grid">
+        <h3 class="section-label">
+          AÇÕES RÁPIDAS DE OPERAÇÃO — {{ props.currentUser?.role?.toUpperCase() || 'ENGENHARIA' }}
+        </h3>
+
+        <!-- Grid Administrador -->
+        <div v-if="props.currentUser?.role === 'Administrador'" class="actions-grid">
+          <button class="action-card primary-action" @click="showUserModal = true">
+            <UserPlus :size="18" />
+            <span>Gestão de Usuários</span>
+          </button>
+
+          <button class="action-card">
+            <Upload :size="18" />
+            <span>Importar Arquivos</span>
+          </button>
+
+          <button class="action-card">
+            <Tag :size="18" />
+            <span>Classificar Categorias</span>
+          </button>
+
+          <button class="action-card">
+            <ShieldCheck :size="18" />
+            <span>Auditar Logs do Sistema</span>
+          </button>
+        </div>
+
+        <!-- Grid Qualidade -->
+        <div v-else-if="props.currentUser?.role === 'Qualidade'" class="actions-grid">
+          <button class="action-card primary-action">
+            <ShieldCheck :size="18" />
+            <span>Auditoria & Conformidade</span>
+          </button>
+
+          <button class="action-card">
+            <FileText :size="18" />
+            <span>Emitir Relatório de Qualidade</span>
+          </button>
+
+          <button class="action-card">
+            <Send :size="18" />
+            <span>Solicitar Revisão Técnica</span>
+          </button>
+
+          <button class="action-card">
+            <Search :size="18" />
+            <span>Pesquisar Não-Conformidades</span>
+          </button>
+        </div>
+
+        <!-- Grid Engenharia / Padrão -->
+        <div v-else class="actions-grid">
           <button class="action-card primary-action">
             <Upload :size="18" />
             <span>Subir Novo Arquivo</span>
@@ -344,8 +526,8 @@
           </button>
 
           <button class="action-card">
-            <ShieldCheck :size="18" />
-            <span>Auditar Logs de Acesso</span>
+            <Sparkles :size="18" />
+            <span>Consultar AI Assistant</span>
           </button>
         </div>
       </section>
@@ -360,25 +542,101 @@
           </a>
         </div>
 
-        <div class="recent-grid">
+        <div class="documents-grid">
           <div v-for="doc in recentDocuments" :key="doc.id" class="document-card">
-            <div class="doc-card-header">
+            <div class="doc-header">
               <span class="doc-category-badge">{{ doc.category }}</span>
-              <span class="doc-code-tag">{{ doc.code }}</span>
+              <span :class="['doc-status-badge', doc.statusClass]">{{ doc.status }}</span>
             </div>
 
             <h4 class="doc-title">{{ doc.title }}</h4>
-
-            <div class="doc-card-footer">
+            <div class="doc-footer">
+              <span class="doc-code">{{ doc.code }}</span>
               <span class="doc-time">{{ doc.time }}</span>
-              <span :class="['status-badge', doc.statusClass]">
-                <span class="status-dot"></span>
-                <span>{{ doc.status }}</span>
-              </span>
             </div>
           </div>
         </div>
       </section>
+
+      <!-- Modal de Gestão de Usuários (Administrador) -->
+      <div v-if="showUserModal" class="modal-overlay" @click.self="showUserModal = false">
+        <div class="user-modal-card fade-in">
+          <div class="modal-header">
+            <div class="modal-title-box">
+              <UserCheck :size="22" class="modal-icon" />
+              <h3>Gestão de Usuários do Sistema</h3>
+            </div>
+            <button class="close-btn" @click="showUserModal = false">&times;</button>
+          </div>
+
+          <div class="modal-body">
+            <!-- Mensagens de Feedback no Modal -->
+            <div v-if="userModalSuccess" class="modal-alert alert-success">
+              <CheckCircle2 :size="16" />
+              <span>{{ userModalSuccess }}</span>
+            </div>
+            <div v-if="userModalError" class="modal-alert alert-error">
+              <AlertCircle :size="16" />
+              <span>{{ userModalError }}</span>
+            </div>
+
+            <!-- Formulário Novo Usuário -->
+            <form class="new-user-form" @submit.prevent="handleCreateUser">
+              <h4>Cadastrar Novo Usuário</h4>
+              <div class="form-row">
+                <input
+                  v-model="newUserName"
+                  type="text"
+                  placeholder="Nome Completo"
+                  class="modal-input"
+                  required
+                />
+                <input
+                  v-model="newUserEmail"
+                  type="email"
+                  placeholder="E-mail (@akaer.com.br)"
+                  class="modal-input"
+                  required
+                />
+              </div>
+              <div class="form-row">
+                <select v-model="newUserRole" class="modal-select">
+                  <option value="Engenharia">Engenharia</option>
+                  <option value="Qualidade">Qualidade</option>
+                  <option value="Administrador">Administrador</option>
+                </select>
+                <input
+                  v-model="newUserMatricula"
+                  type="text"
+                  placeholder="Matrícula (ex: AK-99882)"
+                  class="modal-input"
+                />
+              </div>
+              <button type="submit" class="btn-create-user">
+                <UserPlus :size="16" />
+                <span>Cadastrar Usuário</span>
+              </button>
+            </form>
+
+            <div class="modal-divider"></div>
+
+            <!-- Lista de Usuários Existentes -->
+            <h4>Usuários de Demonstração</h4>
+            <div class="users-list">
+              <div v-for="u in demoUsersList" :key="u.id" class="user-item">
+                <div class="user-item-info">
+                  <strong>{{ u.name }}</strong>
+                  <span>{{ u.email }}</span>
+                </div>
+                <div class="user-item-badge">
+                  <span class="user-role-tag">{{ u.role }}</span>
+                  <span class="user-mat-tag">{{ u.matricula }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
 </template>
@@ -388,33 +646,31 @@
     display: flex;
     min-height: 100vh;
     width: 100vw;
-    background-color: #f1f5f9;
-    overflow-x: hidden;
+    background-color: #f8fafc;
   }
 
-  /* ==========================================
-   SIDEBAR (NAVEGAÇÃO ESQUERDA)
-   ========================================== */
+  /* Sidebar */
   .sidebar {
-    width: 260px;
-    background: radial-gradient(circle at top, #1e0836 0%, #16042a 60%, #0d021c 100%);
+    width: 270px;
+    background-color: #0f172a;
     color: #ffffff;
     display: flex;
     flex-direction: column;
-    padding: 1.75rem 1.25rem;
-    flex-shrink: 0;
+    padding: 1.5rem 1rem;
+    border-right: 1px solid #1e293b;
   }
 
   .sidebar-brand {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    margin-bottom: 2rem;
-    padding-left: 0.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid #1e293b;
+    margin-bottom: 1.5rem;
   }
 
   .sidebar-logo {
-    height: 34px;
+    height: 36px;
     width: auto;
   }
 
@@ -424,134 +680,118 @@
   }
 
   .sidebar-title {
-    font-size: 1.25rem;
-    font-weight: 800;
-    color: #ffffff;
-    line-height: 1;
+    font-weight: 700;
+    font-size: 1.1rem;
+    letter-spacing: -0.01em;
   }
 
   .sidebar-subtitle {
-    font-size: 0.62rem;
-    font-weight: 700;
-    color: #d8b4fe;
-    letter-spacing: 0.12em;
-    margin-top: 0.25rem;
+    font-size: 0.65rem;
+    color: #94a3b8;
+    letter-spacing: 0.08em;
   }
 
   .sidebar-menu {
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
+    gap: 0.4rem;
     flex: 1;
   }
 
   .menu-item {
     display: flex;
     align-items: center;
-    gap: 0.85rem;
+    gap: 0.75rem;
     padding: 0.75rem 1rem;
     color: #94a3b8;
     text-decoration: none;
     font-size: 0.9rem;
     font-weight: 500;
-    border-radius: 10px;
+    border-radius: 8px;
     transition: all 0.2s;
-    position: relative;
   }
 
   .menu-item:hover {
+    background-color: #1e293b;
     color: #ffffff;
-    background-color: rgba(255, 255, 255, 0.06);
   }
 
   .menu-item.active {
+    background-color: #7e22ce;
     color: #ffffff;
-    background-color: #4c1d95;
-    font-weight: 600;
   }
 
-  .menu-item.active::after {
-    content: '';
-    position: absolute;
-    right: 0.75rem;
-    width: 4px;
-    height: 18px;
-    background-color: #c084fc;
-    border-radius: 4px;
+  .menu-icon {
+    opacity: 0.85;
   }
 
   .sidebar-credential-card {
-    background-color: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 12px;
+    background: #1e293b;
     padding: 1rem;
-    margin-top: 1.5rem;
+    border-radius: 10px;
+    border: 1px solid #334155;
+    margin-top: auto;
   }
 
   .cred-tag {
     font-size: 0.65rem;
     font-weight: 800;
-    color: #d8b4fe;
+    color: #c084fc;
     letter-spacing: 0.08em;
     display: block;
-    margin-bottom: 0.25rem;
   }
 
   .cred-level {
-    font-size: 0.9rem;
-    font-weight: 700;
+    font-size: 0.85rem;
+    margin: 0.25rem 0;
     color: #ffffff;
-    margin-bottom: 0.25rem;
   }
 
   .cred-info {
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     color: #94a3b8;
-    line-height: 1.3;
+    margin: 0;
   }
 
-  /* ==========================================
-   MAIN CONTENT
-   ========================================== */
+  /* Main Content */
   .main-content {
     flex: 1;
     padding: 2rem 2.5rem;
-    display: flex;
-    flex-direction: column;
-    gap: 2rem;
     overflow-y: auto;
+
+    max-height: 100vh;
   }
 
-  /* Top Header */
   .top-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    margin-bottom: 2rem;
   }
 
   .page-title {
-    font-family: var(--font-serif);
-    font-size: 2.5rem;
-    font-weight: 500;
-    color: #1e1b4b;
-    line-height: 1.1;
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 0.25rem;
   }
 
   .page-subtitle {
     font-size: 0.9rem;
     color: #64748b;
-    margin-top: 0.25rem;
+
+    margin: 0;
   }
 
   .user-profile-badge {
     display: flex;
     align-items: center;
-    gap: 0.85rem;
-    background-color: #ffffff;
-    padding: 0.5rem 1rem 0.5rem 1.25rem;
-    border-radius: 30px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    gap: 1rem;
+    background: #ffffff;
+    padding: 0.6rem 1rem;
+    border-radius: 10px;
     border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   }
 
   .user-info {
@@ -561,9 +801,9 @@
   }
 
   .user-name {
-    font-size: 0.85rem;
+    font-size: 0.88rem;
     font-weight: 700;
-    color: #1e293b;
+    color: #0f172a;
   }
 
   .user-matricula {
@@ -572,163 +812,140 @@
   }
 
   .user-avatar {
-    width: 36px;
-    height: 36px;
+    width: 38px;
+    height: 38px;
+    background-color: #f1f5f9;
     border-radius: 50%;
-    background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
-    color: #ffffff;
     display: flex;
     align-items: center;
     justify-content: center;
+    color: #7e22ce;
   }
 
-  /* ==========================================
-   AI COMMAND ASSISTANT CARD
-   ========================================== */
+  /* AI Card */
   .ai-assistant-card {
-    background-color: #ffffff;
-    border-radius: 16px;
+    background: #ffffff;
+    border-radius: 14px;
     border: 1px solid #e2e8f0;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
   }
 
   .ai-tabs {
     display: flex;
     gap: 0.5rem;
-    padding: 1rem 1.25rem 0 1.25rem;
     border-bottom: 1px solid #f1f5f9;
+    padding-bottom: 1rem;
+    margin-bottom: 1.25rem;
   }
 
   .tab-btn {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.65rem 1rem;
+    background: none;
+    border: none;
+    padding: 0.5rem 1rem;
     font-size: 0.85rem;
     font-weight: 600;
     color: #64748b;
-    background: none;
-    border: none;
-    border-bottom: 2.5px solid transparent;
+    border-radius: 8px;
     cursor: pointer;
     transition: all 0.2s;
   }
 
-  .tab-btn:hover {
-    color: #7e22ce;
-  }
-
   .tab-btn.active {
+    background-color: #f3e8ff;
     color: #7e22ce;
-    border-bottom-color: #7e22ce;
   }
 
   .chat-container {
-    padding: 1.5rem;
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
-    min-height: 180px;
-  }
-
-  .chat-bubble-wrapper.user {
-    display: flex;
-    justify-content: flex-end;
+    gap: 1rem;
+    max-height: 260px;
+    overflow-y: auto;
+    margin-bottom: 1.25rem;
+    padding-right: 0.5rem;
   }
 
   .user-bubble {
-    background-color: #1e0836;
+    align-self: flex-end;
+    background: #7e22ce;
     color: #ffffff;
-    padding: 0.85rem 1.25rem;
+    padding: 0.75rem 1.25rem;
     border-radius: 14px 14px 2px 14px;
     font-size: 0.9rem;
     max-width: 80%;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
   }
 
   .ai-response-box {
     display: flex;
-    gap: 1rem;
-    background-color: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 14px;
-    padding: 1.25rem;
-    max-width: 90%;
+    gap: 0.85rem;
+    align-self: flex-start;
+    max-width: 85%;
   }
 
   .ai-icon-circle {
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    background-color: #7e22ce;
-    color: #ffffff;
+    background: #f3e8ff;
+    color: #7e22ce;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
   }
 
-  .ai-response-content {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-  }
-
   .ai-text {
     font-size: 0.9rem;
     color: #334155;
     line-height: 1.5;
+    margin: 0 0 0.75rem 0;
   }
 
   .cited-docs-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    display: flex;
     gap: 0.75rem;
+    flex-wrap: wrap;
   }
 
   .cited-doc-card {
-    background-color: #ffffff;
+    background: #f8fafc;
     border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    padding: 0.75rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
+    padding: 0.6rem 0.85rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
   }
 
   .doc-cat-tag {
     font-size: 0.68rem;
     font-weight: 700;
     color: #7e22ce;
-    background-color: #f3e8ff;
-    padding: 0.2rem 0.5rem;
-    border-radius: 4px;
-    width: fit-content;
+    display: block;
   }
 
   .cited-doc-title {
-    font-size: 0.8rem;
-    font-weight: 700;
-    color: #1e293b;
-    line-height: 1.25;
+    font-size: 0.82rem;
+    margin: 0.2rem 0;
+    color: #0f172a;
   }
 
   .cited-doc-code {
     font-size: 0.72rem;
-    color: #94a3b8;
+    color: #64748b;
   }
 
-  /* Input Bar Inferior */
   .ai-input-bar {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    padding: 0.85rem 1.25rem;
-    background-color: #ffffff;
-    border-top: 1px solid #f1f5f9;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    padding: 0.5rem 0.75rem;
+    border-radius: 10px;
   }
 
   .btn-clear {
@@ -736,52 +953,34 @@
     border: none;
     color: #94a3b8;
     cursor: pointer;
-    padding: 0.35rem;
-    border-radius: 6px;
-    transition: color 0.2s;
-  }
 
-  .btn-clear:hover {
-    color: #ef4444;
+    padding: 0.35rem;
   }
 
   .ai-input {
     flex: 1;
     border: none;
+    background: none;
     outline: none;
     font-size: 0.9rem;
-    color: #1e293b;
-  }
-
-  .ai-input::placeholder {
-    color: #94a3b8;
+    color: #0f172a;
   }
 
   .btn-send-ai {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background-color: #7e22ce;
+    background: #7e22ce;
     color: #ffffff;
     border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background-color 0.2s;
   }
 
-  .btn-send-ai:hover {
-    background-color: #6b21a8;
-  }
-
-  /* ==========================================
-   AÇÕES RÁPIDAS DE OPERAÇÃO
-   ========================================== */
+  /* Quick Actions */
   .quick-actions-section {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
+    margin-bottom: 2rem;
   }
 
   .section-label {
@@ -789,106 +988,94 @@
     font-weight: 800;
     color: #64748b;
     letter-spacing: 0.08em;
+    margin-bottom: 0.85rem;
   }
 
   .actions-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 1rem;
   }
 
   .action-card {
     display: flex;
     align-items: center;
-    justify-content: center;
     gap: 0.75rem;
-    padding: 1rem;
-    background-color: #ffffff;
+    padding: 1rem 1.25rem;
+    background: #ffffff;
     border: 1px solid #e2e8f0;
-    border-radius: 12px;
+    border-radius: 10px;
     font-size: 0.88rem;
-    font-weight: 700;
-    color: #1e293b;
+    font-weight: 600;
+    color: #334155;
     cursor: pointer;
     transition: all 0.2s;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
   }
 
   .action-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
-    border-color: #cbd5e1;
+    border-color: #7e22ce;
+    color: #7e22ce;
+    transform: translateY(-1px);
   }
 
   .action-card.primary-action {
-    background-color: #4c1d95;
+    background: linear-gradient(135deg, #7e22ce 0%, #6b21a8 100%);
     color: #ffffff;
     border: none;
   }
 
   .action-card.primary-action:hover {
-    background-color: #3b166e;
+    opacity: 0.95;
+    color: #ffffff;
   }
 
-  /* ==========================================
-   DOCUMENTOS TÉCNICOS RECENTES
-   ========================================== */
+  /* Recent Documents */
   .recent-docs-section {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
+    margin-bottom: 2rem;
   }
 
   .section-header-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    margin-bottom: 1rem;
   }
 
   .section-title {
-    font-size: 1.15rem;
+    font-size: 1.1rem;
     font-weight: 700;
-    color: #1e293b;
+    color: #0f172a;
   }
 
   .link-see-all {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.35rem;
     font-size: 0.85rem;
-    font-weight: 600;
     color: #7e22ce;
+    font-weight: 600;
     text-decoration: none;
   }
 
-  .link-see-all:hover {
-    text-decoration: underline;
-  }
-
-  .recent-grid {
+  .documents-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 1.25rem;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
   }
 
   .document-card {
-    background-color: #ffffff;
+    background: #ffffff;
     border: 1px solid #e2e8f0;
-    border-radius: 14px;
+    border-radius: 10px;
     padding: 1.25rem;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-    gap: 1rem;
-    transition: all 0.2s;
+    gap: 0.75rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
   }
 
-  .document-card:hover {
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.05);
-    border-color: #cbd5e1;
-  }
-
-  .doc-card-header {
+  .doc-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -897,104 +1084,230 @@
   .doc-category-badge {
     font-size: 0.7rem;
     font-weight: 700;
-    color: #7e22ce;
-    background-color: #f3e8ff;
-    padding: 0.25rem 0.6rem;
-    border-radius: 6px;
+    color: #64748b;
+    text-transform: uppercase;
   }
 
-  .doc-code-tag {
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: #94a3b8;
+  .doc-status-badge {
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+  }
+
+  .status-approved {
+    background: #dcfce7;
+    color: #166534;
+  }
+
+  .status-revision {
+    background: #fef9c3;
+    color: #854d0e;
+  }
+
+  .status-pending {
+    background: #fee2e2;
+    color: #991b1b;
   }
 
   .doc-title {
     font-size: 0.95rem;
-    font-weight: 700;
+    font-weight: 600;
     color: #0f172a;
-    line-height: 1.35;
+    margin: 0;
+    line-height: 1.4;
   }
 
-  .doc-card-footer {
+  .doc-footer {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.78rem;
+    color: #94a3b8;
+    margin-top: auto;
+  }
+
+  /* Modal de Gestão de Usuários */
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+  }
+
+  .user-modal-card {
+    background: #ffffff;
+    width: 100%;
+    max-width: 540px;
+    border-radius: 16px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+  }
+
+  .modal-header {
+    background: #0f172a;
+    color: #ffffff;
+    padding: 1.25rem 1.5rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding-top: 0.75rem;
-    border-top: 1px solid #f8fafc;
   }
 
-  .doc-time {
-    font-size: 0.78rem;
-    color: #94a3b8;
-  }
-
-  .status-badge {
-    display: inline-flex;
+  .modal-title-box {
+    display: flex;
     align-items: center;
-    gap: 0.4rem;
-    font-size: 0.75rem;
+    gap: 0.75rem;
+  }
+
+  .modal-title-box h3 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .modal-icon {
+    color: #c084fc;
+  }
+
+  .close-btn {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    font-size: 1.5rem;
+    cursor: pointer;
+  }
+
+  .modal-body {
+    padding: 1.5rem;
+  }
+
+  .modal-alert {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.65rem 0.85rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+  }
+
+  .new-user-form h4,
+  .modal-body h4 {
+    font-size: 0.88rem;
     font-weight: 700;
-    padding: 0.2rem 0.6rem;
-    border-radius: 12px;
+    color: #334155;
+    margin-bottom: 0.75rem;
   }
 
-  .status-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
+  .form-row {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
   }
 
-  .status-approved {
-    background-color: #ecfdf5;
-    color: #059669;
-  }
-  .status-approved .status-dot {
-    background-color: #10b981;
-  }
-
-  .status-revision {
-    background-color: #fff7ed;
-    color: #d97706;
-  }
-  .status-revision .status-dot {
-    background-color: #f59e0b;
+  .modal-input,
+  .modal-select {
+    flex: 1;
+    padding: 0.65rem 0.85rem;
+    font-size: 0.85rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    outline: none;
   }
 
-  .status-pending {
-    background-color: #f3e8ff;
+  .btn-create-user {
+    width: 100%;
+    padding: 0.75rem;
+    background: #7e22ce;
+    color: #ffffff;
+    font-weight: 700;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-size: 0.88rem;
+  }
+
+  .modal-divider {
+    height: 1px;
+    background: #e2e8f0;
+    margin: 1.25rem 0;
+  }
+
+  .users-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    max-height: 180px;
+    overflow-y: auto;
+  }
+
+  .user-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.6rem 0.85rem;
+    background: #f8fafc;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+  }
+
+  .user-item-info {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.82rem;
+  }
+
+  .user-item-info strong {
+    color: #0f172a;
+  }
+
+  .user-item-info span {
+    color: #64748b;
+    font-size: 0.75rem;
+  }
+
+  .user-item-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.2rem;
+  }
+
+  .user-role-tag {
+    font-size: 0.7rem;
+    font-weight: 700;
     color: #7e22ce;
-  }
-  .status-pending .status-dot {
-    background-color: #a855f7;
-  }
-
-  /* Responsive Grid */
-  @media (max-width: 1200px) {
-    .actions-grid {
-      grid-template-columns: repeat(2, 1fr);
-    }
-
-    .recent-grid {
-      grid-template-columns: repeat(2, 1fr);
-    }
+    background: #f3e8ff;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
   }
 
-  @media (max-width: 850px) {
+  .user-mat-tag {
+    font-size: 0.7rem;
+    color: #64748b;
+  }
+
+  @media (max-width: 900px) {
     .dashboard-wrapper {
       flex-direction: column;
+      justify-content: space-between;
+      gap: 1rem;
+      transition: all 0.2s;
     }
-
     .sidebar {
       width: 100%;
-    }
-
-    .recent-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .actions-grid {
-      grid-template-columns: 1fr;
     }
   }
 </style>
