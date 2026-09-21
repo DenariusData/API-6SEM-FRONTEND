@@ -127,7 +127,7 @@ const handleSendAiMessage = () => {
   setTimeout(() => {
     chatMessages.value.push({
       type: 'ai',
-      text: `Analisando a sua consulta: "${userQuery}". Os parâmetros de conformidade técnica indicam margem de segurança dentro dos limites operacionais previstos pela norma Akaer-ENG-2026.`,
+      text: 'Identifiquei 3 documentos altamente relevantes para a sua análise de trem de pouso e stress estrutural na asa do Gripen NG. Recomendo focar no primeiro certificado de conformidade.',
       documents: [
         { category: 'Aeroestrutura', title: 'Manual de Tolerância e Resistência', code: 'OI-9621-X' }
       ]
@@ -293,8 +293,8 @@ const getMenuIcon = (menuTitle) => {
         <div class="ai-tabs">
           <button
             type="button"
-            @click="activeTab = 'AI Command Assistant'"
             :class="['tab-btn', { active: activeTab === 'AI Command Assistant' }]"
+            @click="activeTab = 'AI Command Assistant'"
           >
             <Sparkles :size="16" />
             <span>AI Command Assistant</span>
@@ -302,8 +302,8 @@ const getMenuIcon = (menuTitle) => {
 
           <button
             type="button"
-            @click="activeTab = 'Smart Search'"
             :class="['tab-btn', { active: activeTab === 'Smart Search' }]"
+            @click="activeTab = 'Smart Search'"
           >
             <Search :size="16" />
             <span>Smart Search</span>
@@ -311,8 +311,8 @@ const getMenuIcon = (menuTitle) => {
 
           <button
             type="button"
-            @click="activeTab = 'Prompt Console'"
             :class="['tab-btn', { active: activeTab === 'Prompt Console' }]"
+            @click="activeTab = 'Prompt Console'"
           >
             <Settings :size="16" />
             <span>Prompt Console</span>
@@ -341,11 +341,7 @@ const getMenuIcon = (menuTitle) => {
 
                 <!-- Cards de Documentos Citados -->
                 <div v-if="msg.documents && msg.documents.length" class="cited-docs-grid">
-                  <div
-                    v-for="(doc, dIdx) in msg.documents"
-                    :key="dIdx"
-                    class="cited-doc-card"
-                  >
+                  <div v-for="(doc, dIdx) in msg.documents" :key="dIdx" class="cited-doc-card">
                     <span class="doc-cat-tag">{{ doc.category }}</span>
                     <h5 class="cited-doc-title">{{ doc.title }}</h5>
                     <span class="cited-doc-code">{{ doc.code }}</span>
@@ -358,17 +354,17 @@ const getMenuIcon = (menuTitle) => {
 
         <!-- Input Bar Inferior -->
         <div class="ai-input-bar">
-          <button type="button" @click="clearChat" class="btn-clear" title="Limpar mensagens">
+          <button type="button" class="btn-clear" title="Limpar mensagens" @click="clearChat">
             <Trash2 :size="18" />
           </button>
           <input
-            type="text"
             v-model="aiInputQuery"
             @keyup.enter="handleSendAiMessage"
             placeholder="Digite sua mensagem para o assistente de engenharia..."
             class="ai-input"
+            @keyup.enter="handleSendAiMessage"
           />
-          <button type="button" @click="handleSendAiMessage" class="btn-send-ai">
+          <button type="button" class="btn-send-ai" @click="handleSendAiMessage">
             <Send :size="16" />
           </button>
         </div>
@@ -452,7 +448,7 @@ const getMenuIcon = (menuTitle) => {
       <section class="recent-docs-section">
         <div class="section-header-row">
           <h3 class="section-title">Documentos Técnicos Recentes</h3>
-          <a href="#" @click.prevent class="link-see-all">
+          <a href="#" class="link-see-all" @click.prevent>
             <span>Ver todos os arquivos</span>
             <ArrowRight :size="16" />
           </a>
@@ -1203,6 +1199,9 @@ const getMenuIcon = (menuTitle) => {
 @media (max-width: 900px) {
   .dashboard-wrapper {
     flex-direction: column;
+    justify-content: space-between;
+    gap: 1rem;
+    transition: all 0.2s;
   }
   .sidebar {
     width: 100%;

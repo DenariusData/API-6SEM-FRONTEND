@@ -67,26 +67,26 @@ const switchProfile = (roleName) => {
     <!-- Floating Quick Navigation Switcher (Para troca fácil de visão e perfil em ambiente de Dev/Demo) -->
     <div class="screen-switcher-bar">
       <span class="switcher-label">AkaVision Preview:</span>
-      
+
       <button
-        @click="currentScreen = 'login'"
         :class="['switcher-btn', { active: currentScreen === 'login' }]"
+        @click="currentScreen = 'login'"
       >
         <LogIn :size="14" />
         <span>Login</span>
       </button>
 
       <button
-        @click="currentScreen = 'terms'"
         :class="['switcher-btn', { active: currentScreen === 'terms' }]"
+        @click="currentScreen = 'terms'"
       >
         <FileCheck :size="14" />
         <span>Termos</span>
       </button>
 
       <button
-        @click="currentScreen = 'dashboard'"
         :class="['switcher-btn', { active: currentScreen === 'dashboard' }]"
+        @click="currentScreen = 'dashboard'"
       >
         <LayoutDashboard :size="14" />
         <span>Dashboard</span>
@@ -125,10 +125,7 @@ const switchProfile = (roleName) => {
 
     <!-- Renderização Condicional da Tela -->
     <main class="main-screen-container">
-      <LoginView
-        v-if="currentScreen === 'login'"
-        @loginSuccess="onLoginSuccess"
-      />
+      <LoginView v-if="currentScreen === 'login'" @login-success="onLoginSuccess" />
 
       <TermsView
         v-else-if="currentScreen === 'terms'"
@@ -231,5 +228,4 @@ const switchProfile = (roleName) => {
     flex-wrap: wrap;
     justify-content: center;
   }
-}
 </style>
