@@ -1,0 +1,59 @@
+exclude: |
+  (?x)^(
+    \.github/workflows/.*|
+    dist/.*|
+    public/.*
+  )$
+
+repos:
+  # ── Hooks gerais ──────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: \.yml$
+      - id: end-of-file-fixer
+        exclude: \.yml$
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ['--maxkb=5000']
+      - id: no-commit-to-branch
+        args: [--branch, main, --branch, master]
+
+  # ── Lint + formatação JS/Vue (usa o node_modules do próprio projeto) ─
+  - repo: local
+    hooks:
+      - id: eslint
+        name: ESLint
+        language: system
+        entry: npx eslint --fix
+        files: \.(js|vue)$
+        exclude: ^(dist|public|node_modules)/
+
+      - id: prettier
+        name: Prettier
+        language: system
+        entry: npx prettier --write
+        files: \.(js|vue|json|css|md)$
+        exclude: ^(dist|public|node_modules)/
+
+  # ── Validação da mensagem de commit (mesmo padrão do backend) ─
+  - repo: local
+    hooks:
+      - id: validate-commit-msg
+        name: Validate commit message format
+        language: python
+        entry: python scripts/validate_commit_msg.py
+        stages: [commit-msg]
+
+  # ── Validação do nome da branch (mesmo padrão do backend) ────
+  - repo: local
+    hooks:
+      - id: validate-branch-name
+        name: Validate branch name format
+        language: python
+        entry: python scripts/validate_branch_name.py
+        stages: [pre-commit]
+        always_run: true
+        pass_filenames: false
