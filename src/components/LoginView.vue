@@ -1,118 +1,144 @@
 <script setup>
-import { ref } from 'vue'
-import AkaLogo from './AkaLogo.vue'
-import { User, Lock, Eye, EyeOff, ShieldCheck, Loader2, AlertCircle } from 'lucide-vue-next'
+  import { ref } from 'vue';
+  import AkaLogo from './AkaLogo.vue';
+  import { User, Lock, Eye, EyeOff, ShieldCheck, Loader2, AlertCircle } from 'lucide-vue-next';
 
-const engineerId = ref('')
-const password = ref('')
-const showPassword = ref(false)
-const isLoading = ref(false)
-const errorMessage = ref('')
-const successMessage = ref('')
+  const engineerId = ref('');
+  const password = ref('');
+  const showPassword = ref(false);
+  const isLoading = ref(false);
+  const errorMessage = ref('');
+  const successMessage = ref('');
 
-const emit = defineEmits(['loginSuccess'])
+  const emit = defineEmits(['loginSuccess']);
 
-const togglePasswordVisibility = () => {
-  showPassword.value = !showPassword.value
-}
+  const togglePasswordVisibility = () => {
+    showPassword.value = !showPassword.value;
+  };
 
-const UNIFIED_AUTH_ERROR_MSG = 'Usuário e/ou senha inválidos. Por favor, verifique suas credenciais de acesso.'
+  const UNIFIED_AUTH_ERROR_MSG =
+    'Usuário e/ou senha inválidos. Por favor, verifique suas credenciais de acesso.';
 
-// Fallback de demonstração caso o servidor backend Django não esteja em execução no momento do teste
-const MOCK_DEMO_USERS = {
-  'engenharia@akaer.com.br': {
-    id: 1,
-    email: 'engenharia@akaer.com.br',
-    password: 'eng123',
-    name: 'Carlos Eduardo',
-    role: 'Engenharia',
-    matricula: 'AK-90822',
-    cargo: 'Engenheiro Aeroespacial Senior',
-    allowed_menus: ['Início', 'Pesquisa Avançada', 'Documentos', 'Projetos', 'AI Command Assistant', 'Solicitar OI']
-  },
-  'qualidade@akaer.com.br': {
-    id: 2,
-    email: 'qualidade@akaer.com.br',
-    password: 'qual123',
-    name: 'Ana Souza',
-    role: 'Qualidade',
-    matricula: 'AK-77401',
-    cargo: 'Inspectora de Qualidade e Conformidade',
-    allowed_menus: ['Início', 'Pesquisa Avançada', 'Documentos', 'Relatórios de Qualidade', 'Auditoria & Conformidade']
-  },
-  'admin@akaer.com.br': {
-    id: 3,
-    email: 'admin@akaer.com.br',
-    password: 'admin123',
-    name: 'Ricardo Mendes',
-    role: 'Administrador',
-    matricula: 'AK-10001',
-    cargo: 'Administrador do Sistema',
-    allowed_menus: ['Início', 'Pesquisa Avançada', 'Documentos', 'Projetos', 'Despachos', 'Malotes Digitais', 'Gestão de Usuários', 'Importar Arquivos', 'Classificar Categorias', 'AI Command Assistant']
-  }
-}
+  // Fallback de demonstração caso o servidor backend Django não esteja em execução no momento do teste
+  const MOCK_DEMO_USERS = {
+    'engenharia@akaer.com.br': {
+      id: 1,
+      email: 'engenharia@akaer.com.br',
+      password: 'eng123',
+      name: 'Carlos Eduardo',
+      role: 'Engenharia',
+      matricula: 'AK-90822',
+      cargo: 'Engenheiro Aeroespacial Senior',
+      allowed_menus: [
+        'Início',
+        'Pesquisa Avançada',
+        'Documentos',
+        'Projetos',
+        'AI Command Assistant',
+        'Solicitar OI',
+      ],
+    },
+    'qualidade@akaer.com.br': {
+      id: 2,
+      email: 'qualidade@akaer.com.br',
+      password: 'qual123',
+      name: 'Ana Souza',
+      role: 'Qualidade',
+      matricula: 'AK-77401',
+      cargo: 'Inspectora de Qualidade e Conformidade',
+      allowed_menus: [
+        'Início',
+        'Pesquisa Avançada',
+        'Documentos',
+        'Relatórios de Qualidade',
+        'Auditoria & Conformidade',
+      ],
+    },
+    'admin@akaer.com.br': {
+      id: 3,
+      email: 'admin@akaer.com.br',
+      password: 'admin123',
+      name: 'Ricardo Mendes',
+      role: 'Administrador',
+      matricula: 'AK-10001',
+      cargo: 'Administrador do Sistema',
+      allowed_menus: [
+        'Início',
+        'Pesquisa Avançada',
+        'Documentos',
+        'Projetos',
+        'Despachos',
+        'Malotes Digitais',
+        'Gestão de Usuários',
+        'Importar Arquivos',
+        'Classificar Categorias',
+        'AI Command Assistant',
+      ],
+    },
+  };
 
-const handleLogin = async () => {
-  errorMessage.value = ''
-  successMessage.value = ''
+  const handleLogin = async () => {
+    errorMessage.value = '';
+    successMessage.value = '';
 
-  const emailInput = engineerId.value.trim().toLowerCase()
-  const passInput = password.value
+    const emailInput = engineerId.value.trim().toLowerCase();
+    const passInput = password.value;
 
-  if (!emailInput) {
-    errorMessage.value = 'Por favor, informe o e-mail de acesso.'
-    return
-  }
-
-  if (!passInput) {
-    errorMessage.value = 'Por favor, informe a senha de segurança.'
-    return
-  }
-
-  isLoading.value = true
-
-  try {
-    const response = await fetch('http://localhost:8000/api/auth/login/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        email: emailInput,
-        password: passInput
-      })
-    })
-
-    const data = await response.json()
-
-    if (!response.ok) {
-      errorMessage.value = data.detail || UNIFIED_AUTH_ERROR_MSG
-      isLoading.value = false
-      return
+    if (!emailInput) {
+      errorMessage.value = 'Por favor, informe o e-mail de acesso.';
+      return;
     }
 
-    isLoading.value = false
-    successMessage.value = `Autenticação efetuada com sucesso! Bem-vindo(a), ${data.user.name}.`
-    setTimeout(() => {
-      emit('loginSuccess', data.user)
-    }, 600)
-  } catch (err) {
-    // Fallback de demonstração offline se o backend Django não estiver iniciado
-    setTimeout(() => {
-      isLoading.value = false
-      const mockUser = MOCK_DEMO_USERS[emailInput]
-      if (mockUser && mockUser.password === passInput) {
-        const { password: _, ...userSansPassword } = mockUser
-        successMessage.value = `Autenticação efetuada com sucesso! (Modo de Demonstração)`
-        setTimeout(() => {
-          emit('loginSuccess', userSansPassword)
-        }, 600)
-      } else {
-        errorMessage.value = UNIFIED_AUTH_ERROR_MSG
+    if (!passInput) {
+      errorMessage.value = 'Por favor, informe a senha de segurança.';
+      return;
+    }
+
+    isLoading.value = true;
+
+    try {
+      const response = await fetch('http://localhost:8000/api/auth/login/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: emailInput,
+          password: passInput,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        errorMessage.value = data.detail || UNIFIED_AUTH_ERROR_MSG;
+        isLoading.value = false;
+        return;
       }
-    }, 400)
-  }
-}
+
+      isLoading.value = false;
+      successMessage.value = `Autenticação efetuada com sucesso! Bem-vindo(a), ${data.user.name}.`;
+      setTimeout(() => {
+        emit('loginSuccess', data.user);
+      }, 600);
+    } catch {
+      // Fallback de demonstração offline se o backend Django não estiver iniciado
+      setTimeout(() => {
+        isLoading.value = false;
+        const mockUser = MOCK_DEMO_USERS[emailInput];
+        if (mockUser && mockUser.password === passInput) {
+          const userSansPassword = { ...mockUser };
+          delete userSansPassword.password;
+          successMessage.value = `Autenticação efetuada com sucesso! (Modo de Demonstração)`;
+          setTimeout(() => {
+            emit('loginSuccess', userSansPassword);
+          }, 600);
+        } else {
+          errorMessage.value = UNIFIED_AUTH_ERROR_MSG;
+        }
+      }, 400);
+    }
+  };
 </script>
 
 <template>
