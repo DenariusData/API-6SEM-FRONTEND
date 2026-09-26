@@ -404,9 +404,14 @@ const handleSendAiMessage = () => {
   setTimeout(() => {
     chatMessages.value.push({
       type: 'ai',
-      text: 'Identifiquei 3 documentos altamente relevantes para a sua análise de trem de pouso e stress estrutural na asa do Gripen NG. Recomendo focar no primeiro certificado de conformidade.',
-      documents: [
+      text: 'Com base nas especificações estruturais e relatórios de aeroestrutura da Akaer, o limite máximo de stress estático para a asa do Gripen NG em manobra supersônica (9g) é de 450 MPa. Para fadiga cíclica contínua, o limite seguro recomendado é de 310 MPa.',
+      timestamp: '14:30',
+      sources: [
         {
+          documentName: 'Stress Test e Cargas Estruturais Asa Esquerda - Gripen NG',
+          code: 'OI-2026-A8',
+          revision: 'Rev. 04',
+          page: 'Pág. 42',
           category: 'Aeroestrutura',
           title: 'Manual de Tolerância e Resistência',
           code: 'OI-9621-X',
@@ -422,144 +427,6 @@ const clearChat = () => {
 
 /* =========================================================
    DOCUMENTOS RECENTES
-========================================================= */
-
-const recentDocuments = ref([
-  {
-    id: 1,
-    category: 'Aeroestrutura',
-    code: 'OI-2026-A8',
-    title: 'Stress Test Asa Esquerda - Gripen NG',
-    time: 'Modificado há 2h',
-    status: 'Aprovado',
-    statusClass: 'status-approved',
-  },
-  {
-    id: 2,
-    category: 'Sistemas Críticos',
-    code: 'DO-4820-F4',
-    title: 'Relatório de Empuxo Estrutural - Protótipo C',
-    time: 'Modificado há 4h',
-    status: 'Em Revisão',
-    statusClass: 'status-revision',
-  },
-  {
-    id: 3,
-    category: 'Logística',
-    code: 'DS-8920-L',
-    title: 'Instruções de Despacho de Asa - SJC Hangar 2',
-    time: 'Modificado ontem',
-    status: 'Aprovado',
-    statusClass: 'status-approved',
-  },
-  {
-    id: 4,
-    category: 'Sistemas Críticos',
-    code: 'OI-9621-X',
-    title: 'Manual de Operação de Aviônicos - Versão Final',
-    time: 'Modificado ontem',
-    status: 'Pendente',
-    statusClass: 'status-pending',
-  },
-  {
-    id: 5,
-    category: 'Aeroestrutura',
-    code: 'CA-4028-E',
-    title: 'Certificado de Análise Estrutural do Trem de Pouso',
-    time: 'Modificado há 3 dias',
-    status: 'Aprovado',
-    statusClass: 'status-approved',
-  },
-  {
-    id: 6,
-    category: 'Manutenção',
-    code: 'PM-9011-M',
-    title: 'Plano de Manutenção Preventiva Turbinas GE-880',
-    time: 'Modificado há 5 dias',
-    status: 'Em Revisão',
-    statusClass: 'status-revision',
-  },
-]);
-
-/* =========================================================
-   MENUS
-========================================================= */
-
-const activeUserMenus = computed(() => {
-  if (
-    props.currentUser?.allowed_menus &&
-    props.currentUser.allowed_menus.length
-  ) {
-    return props.currentUser.allowed_menus;
-  }
-
-  if (props.currentUser?.role === 'Administrador') {
-    return [
-      'Início',
-      'Pesquisa Avançada',
-      'Documentos',
-      'Projetos',
-      'Despachos',
-      'Malotes Digitais',
-      'Gestão de Usuários',
-      'Importar Arquivos',
-      'Classificar Categorias',
-      'AI Command Assistant',
-    ];
-  }
-
-  if (props.currentUser?.role === 'Qualidade') {
-    return [
-      'Início',
-      'Pesquisa Avançada',
-      'Documentos',
-      'Relatórios de Qualidade',
-      'Auditoria & Conformidade',
-    ];
-  }
-
-  return [
-    'Início',
-    'Pesquisa Avançada',
-    'Documentos',
-    'Projetos',
-    'AI Command Assistant',
-    'Solicitar OI',
-  ];
-});
-
-const getMenuIcon = (menuTitle) => {
-  switch (menuTitle) {
-    case 'Início':
-      return Home;
-    case 'Pesquisa Avançada':
-      return Search;
-    case 'Documentos':
-      return FileText;
-    case 'Gestão de Usuários':
-      return UserCheck;
-    case 'Importar Arquivos':
-      return Upload;
-    case 'Classificar Categorias':
-      return Tag;
-    case 'Projetos':
-      return FolderGit2;
-    case 'Despachos':
-      return Package;
-    case 'Malotes Digitais':
-      return Mail;
-    case 'AI Command Assistant':
-      return Sparkles;
-    case 'Relatórios de Qualidade':
-      return FileText;
-    case 'Auditoria & Conformidade':
-      return ShieldCheck;
-    case 'Solicitar OI':
-      return Plus;
-    default:
-      return FileText;
-  }
-};
 </script>
 
 <template>
@@ -762,6 +629,7 @@ const getMenuIcon = (menuTitle) => {
               class="user-bubble"
             >
               <span>{{ msg.text }}</span>
+              <span v-if="msg.timestamp" class="bubble-timestamp">{{ msg.timestamp }}</span>
             </div>
 
             <div
@@ -830,8 +698,10 @@ const getMenuIcon = (menuTitle) => {
 
           <input
             v-model="aiInputQuery"
-            placeholder="Digite sua mensagem para o assistente de engenharia..."
+            type="text"
+            placeholder="Digite sua pergunta técnica (ex: limites de stress, manuais de manutenção)..."
             class="ai-input"
+            :disabled="isProcessing"
             @keyup.enter="handleSendAiMessage"
           />
 
