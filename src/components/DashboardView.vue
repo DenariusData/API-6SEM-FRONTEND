@@ -1,6 +1,7 @@
 <script setup>
   import { ref, computed } from 'vue';
   import logoUrl from '@/assets/logo.png';
+
   import {
     Home,
     Search,
@@ -21,6 +22,8 @@
     Tag,
     CheckCircle2,
     AlertCircle,
+    X,
+    FileUp,
   } from 'lucide-vue-next';
 
   const props = defineProps({
@@ -48,12 +51,17 @@
   const activeMenu = ref('Início');
   const activeTab = ref('AI Command Assistant');
 
-  // Modal de Gestão de Usuários (Exclusivo Administrador)
+  /* =========================================================
+   GESTÃO DE USUÁRIOS
+========================================================= */
+
   const showUserModal = ref(false);
+
   const newUserName = ref('');
   const newUserEmail = ref('');
   const newUserRole = ref('Engenharia');
   const newUserMatricula = ref('');
+
   const userModalSuccess = ref('');
   const userModalError = ref('');
 
@@ -100,19 +108,32 @@
     try {
       const res = await fetch('http://localhost:8000/api/auth/users/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(payload),
       });
+
       if (res.ok) {
         const data = await res.json();
+
         demoUsersList.value.push(data.user);
+
         userModalSuccess.value = `Usuário ${data.user.name} cadastrado com sucesso!`;
       } else {
-        demoUsersList.value.push({ ...payload, id: Date.now() });
+        demoUsersList.value.push({
+          ...payload,
+          id: Date.now(),
+        });
+
         userModalSuccess.value = `Usuário ${payload.name} cadastrado no ambiente de demonstração!`;
       }
     } catch {
-      demoUsersList.value.push({ ...payload, id: Date.now() });
+      demoUsersList.value.push({
+        ...payload,
+        id: Date.now(),
+      });
+
       userModalSuccess.value = `Usuário ${payload.name} cadastrado!`;
     }
 
@@ -121,7 +142,194 @@
     newUserMatricula.value = '';
   };
 
+  /* =========================================================
+   UPLOAD DE ARQUIVOS - AKA-34
+========================================================= */
+
+  const showUploadModal = ref(false);
+
+  const uploadFile = ref(null);
+  const uploadTitle = ref('');
+  const uploadCategory = ref('');
+  const uploadDescription = ref('');
+
+  const uploadError = ref('');
+  const uploadSuccess = ref('');
+  const uploadLoading = ref(false);
+
+  const allowedFileTypes = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'text/plain',
+  ];
+
+  const allowedExtensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt'];
+
+  const maxFileSize = 10 * 1024 * 1024;
+
+  const openUploadModal = () => {
+    uploadError.value = '';
+    uploadSuccess.value = '';
+
+    showUploadModal.value = true;
+  };
+
+  const closeUploadModal = () => {
+    if (uploadLoading.value) return;
+
+    showUploadModal.value = false;
+    resetUploadForm();
+  };
+
+  const resetUploadForm = () => {
+    uploadFile.value = null;
+    uploadTitle.value = '';
+    uploadCategory.value = '';
+    uploadDescription.value = '';
+    uploadError.value = '';
+    uploadSuccess.value = '';
+
+    const fileInput = document.getElementById('upload-file-input');
+
+    if (fileInput) {
+      fileInput.value = '';
+    }
+  };
+
+  const handleFileChange = (event) => {
+    uploadError.value = '';
+    uploadSuccess.value = '';
+
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      uploadFile.value = null;
+      return;
+    }
+
+    const extension = `.${file.name.split('.').pop()?.toLowerCase()}`;
+
+    if (!allowedFileTypes.includes(file.type) && !allowedExtensions.includes(extension)) {
+      uploadError.value = 'Tipo de arquivo inválido. Envie PDF, DOC, DOCX, XLS, XLSX ou TXT.';
+
+      uploadFile.value = null;
+      event.target.value = '';
+
+      return;
+    }
+
+    if (file.size > maxFileSize) {
+      uploadError.value = 'O arquivo ultrapassa o limite máximo de 10 MB.';
+
+      uploadFile.value = null;
+      event.target.value = '';
+
+      return;
+    }
+
+    uploadFile.value = file;
+
+    if (!uploadTitle.value) {
+      uploadTitle.value = file.name.replace(/\.[^/.]+$/, '');
+    }
+  };
+
+  const validateUploadForm = () => {
+    uploadError.value = '';
+
+    if (!uploadFile.value) {
+      uploadError.value = 'Selecione um arquivo para realizar o upload.';
+      return false;
+    }
+
+    if (!uploadTitle.value.trim()) {
+      uploadError.value = 'Informe o título do documento.';
+      return false;
+    }
+
+    if (!uploadCategory.value) {
+      uploadError.value = 'Selecione uma categoria para o documento.';
+      return false;
+    }
+
+    if (uploadDescription.value.length > 500) {
+      uploadError.value = 'A descrição não pode ultrapassar 500 caracteres.';
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleUploadFile = async () => {
+    uploadSuccess.value = '';
+    uploadError.value = '';
+
+    // Validação que você já possui
+    if (!validateUploadForm()) {
+      return;
+    }
+
+    uploadLoading.value = true;
+
+    try {
+      // Cria o formulário que será enviado para o Django
+      const formData = new FormData();
+
+      // Arquivo selecionado
+      formData.append('file', uploadFile.value);
+
+      // Dados do formulário
+      formData.append('title', uploadTitle.value.trim());
+      formData.append('category', uploadCategory.value);
+      formData.append('description', uploadDescription.value.trim());
+
+      // Envia para o backend Django
+      const response = await fetch('http://localhost:8000/api/documents/upload/', {
+        method: 'POST',
+        body: formData,
+      });
+
+      // Tenta ler a resposta do Django
+      const data = await response.json();
+
+      // Se o Django retornar erro
+      if (!response.ok) {
+        throw new Error(data?.detail || 'Não foi possível enviar o arquivo.');
+      }
+
+      // SUCESSO
+      uploadSuccess.value = data?.message || `Arquivo "${uploadTitle.value}" enviado com sucesso!`;
+
+      // Limpa os campos depois do upload
+      uploadFile.value = null;
+      uploadTitle.value = '';
+      uploadCategory.value = '';
+      uploadDescription.value = '';
+
+      // Limpa o input de arquivo
+      const fileInput = document.getElementById('upload-file-input');
+
+      if (fileInput) {
+        fileInput.value = '';
+      }
+    } catch (error) {
+      console.error('Erro no upload:', error);
+
+      uploadError.value = error?.message || 'Não foi possível enviar o arquivo. Tente novamente.';
+    } finally {
+      uploadLoading.value = false;
+    }
+  };
+
+  /* =========================================================
+   AI COMMAND ASSISTANT
+========================================================= */
+
   const aiInputQuery = ref('');
+
   const chatMessages = ref([
     {
       type: 'user',
@@ -151,11 +359,12 @@
   ]);
 
   const handleSendAiMessage = () => {
-    if (!aiInputQuery.value.trim()) return;
+    const query = aiInputQuery.value.trim();
+    if (!query) return;
 
     chatMessages.value.push({
       type: 'user',
-      text: aiInputQuery.value,
+      text: query,
     });
 
     aiInputQuery.value = '';
@@ -179,7 +388,10 @@
     chatMessages.value = [];
   };
 
-  // Lista de Documentos Técnicos Recentes
+  /* =========================================================
+   DOCUMENTOS RECENTES
+========================================================= */
+
   const recentDocuments = ref([
     {
       id: 1,
@@ -237,11 +449,15 @@
     },
   ]);
 
-  // Menus padrão para fallback por perfil caso não venha no objeto
+  /* =========================================================
+   MENUS
+========================================================= */
+
   const activeUserMenus = computed(() => {
     if (props.currentUser?.allowed_menus && props.currentUser.allowed_menus.length) {
       return props.currentUser.allowed_menus;
     }
+
     if (props.currentUser?.role === 'Administrador') {
       return [
         'Início',
@@ -255,7 +471,9 @@
         'Classificar Categorias',
         'AI Command Assistant',
       ];
-    } else if (props.currentUser?.role === 'Qualidade') {
+    }
+
+    if (props.currentUser?.role === 'Qualidade') {
       return [
         'Início',
         'Pesquisa Avançada',
@@ -263,16 +481,16 @@
         'Relatórios de Qualidade',
         'Auditoria & Conformidade',
       ];
-    } else {
-      return [
-        'Início',
-        'Pesquisa Avançada',
-        'Documentos',
-        'Projetos',
-        'AI Command Assistant',
-        'Solicitar OI',
-      ];
     }
+
+    return [
+      'Início',
+      'Pesquisa Avançada',
+      'Documentos',
+      'Projetos',
+      'AI Command Assistant',
+      'Solicitar OI',
+    ];
   });
 
   const getMenuIcon = (menuTitle) => {
@@ -311,17 +529,20 @@
 
 <template>
   <div class="dashboard-wrapper fade-in">
-    <!-- Sidebar Navegação Esquerda -->
+    <!-- =====================================================
+         SIDEBAR
+    ====================================================== -->
+
     <aside class="sidebar">
       <div class="sidebar-brand">
         <img :src="logoUrl" alt="AkaVision Logo" class="sidebar-logo" />
+
         <div class="sidebar-brand-text">
           <span class="sidebar-title">AkaVision</span>
-          <span class="sidebar-subtitle">AKAER ENGENHARIA S.A.</span>
+          <span class="sidebar-subtitle"> AKAER ENGENHARIA S.A. </span>
         </div>
       </div>
 
-      <!-- Menu Principal Dinâmico por Perfil -->
       <nav class="sidebar-menu">
         <a
           v-for="item in activeUserMenus"
@@ -333,54 +554,84 @@
           "
         >
           <component :is="getMenuIcon(item)" :size="18" class="menu-icon" />
+
           <span>{{ item }}</span>
         </a>
       </nav>
 
-      <!-- Card Inferior de Credencial Operacional -->
       <div class="sidebar-credential-card">
-        <span class="cred-tag"
-          >PERFIL {{ props.currentUser?.role?.toUpperCase() || 'OPERACIONAL' }}</span
-        >
-        <h4 class="cred-level">Nível — {{ props.currentUser?.role || 'Engenharia' }}</h4>
+        <span class="cred-tag">
+          PERFIL
+          {{ props.currentUser?.role?.toUpperCase() || 'OPERACIONAL' }}
+        </span>
+
+        <h4 class="cred-level">
+          Nível —
+          {{ props.currentUser?.role || 'Engenharia' }}
+        </h4>
+
         <p class="cred-info">
-          Credencial {{ props.currentUser?.matricula || 'AK-90822' }} verificada.
+          Credencial
+          {{ props.currentUser?.matricula || 'AK-90822' }}
+          verificada.
         </p>
       </div>
     </aside>
 
-    <!-- Área Principal de Trabalho -->
+    <!-- =====================================================
+         MAIN
+    ====================================================== -->
+
     <main class="main-content">
-      <!-- Header Superior -->
+      <!-- HEADER -->
+
       <header class="top-header">
         <div class="header-titles">
-          <h1 class="page-title">Painel — Perfil {{ props.currentUser?.role || 'Engenharia' }}</h1>
+          <h1 class="page-title">
+            Painel — Perfil
+            {{ props.currentUser?.role || 'Engenharia' }}
+          </h1>
+
           <p class="page-subtitle">
-            Bem-vindo de volta, {{ props.currentUser?.name || 'Carlos Eduardo' }} —
+            Bem-vindo de volta,
+            {{ props.currentUser?.name || 'Carlos Eduardo' }}
+            —
             {{ props.currentUser?.cargo || 'Engenheiro' }}
           </p>
         </div>
 
         <div class="user-profile-badge">
           <div class="user-info">
-            <span class="user-name">{{ props.currentUser?.name || 'Carlos Eduardo' }}</span>
-            <span class="user-matricula"
-              >Matrícula {{ props.currentUser?.matricula || 'AK-90822' }}</span
-            >
+            <span class="user-name">
+              {{ props.currentUser?.name || 'Carlos Eduardo' }}
+            </span>
+
+            <span class="user-matricula">
+              Matrícula
+              {{ props.currentUser?.matricula || 'AK-90822' }}
+            </span>
           </div>
+
           <div class="user-avatar">
             <UserCheck :size="20" class="avatar-icon" />
           </div>
         </div>
       </header>
 
-      <!-- Seção AI Command Assistant (Disponível para Engenharia e Administrador) -->
+      <!-- =====================================================
+           AI ASSISTANT
+      ====================================================== -->
+
       <section v-if="activeUserMenus.includes('AI Command Assistant')" class="ai-assistant-card">
-        <!-- Abas da IA -->
         <div class="ai-tabs">
           <button
             type="button"
-            :class="['tab-btn', { active: activeTab === 'AI Command Assistant' }]"
+            :class="[
+              'tab-btn',
+              {
+                active: activeTab === 'AI Command Assistant',
+              },
+            ]"
             @click="activeTab = 'AI Command Assistant'"
           >
             <Sparkles :size="16" />
@@ -389,7 +640,12 @@
 
           <button
             type="button"
-            :class="['tab-btn', { active: activeTab === 'Smart Search' }]"
+            :class="[
+              'tab-btn',
+              {
+                active: activeTab === 'Smart Search',
+              },
+            ]"
             @click="activeTab = 'Smart Search'"
           >
             <Search :size="16" />
@@ -398,7 +654,12 @@
 
           <button
             type="button"
-            :class="['tab-btn', { active: activeTab === 'Prompt Console' }]"
+            :class="[
+              'tab-btn',
+              {
+                active: activeTab === 'Prompt Console',
+              },
+            ]"
             @click="activeTab = 'Prompt Console'"
           >
             <Settings :size="16" />
@@ -406,32 +667,39 @@
           </button>
         </div>
 
-        <!-- Chat Stream Area -->
         <div class="chat-container">
           <div
             v-for="(msg, index) in chatMessages"
             :key="index"
             :class="['chat-bubble-wrapper', msg.type]"
           >
-            <!-- Pergunta do Usuário -->
             <div v-if="msg.type === 'user'" class="user-bubble">
               <span>{{ msg.text }}</span>
             </div>
 
-            <!-- Resposta da IA -->
             <div v-else class="ai-response-box">
               <div class="ai-icon-circle">
                 <Sparkles :size="16" />
               </div>
-              <div class="ai-response-content">
-                <p class="ai-text">{{ msg.text }}</p>
 
-                <!-- Cards de Documentos Citados -->
+              <div class="ai-response-content">
+                <p class="ai-text">
+                  {{ msg.text }}
+                </p>
+
                 <div v-if="msg.documents && msg.documents.length" class="cited-docs-grid">
                   <div v-for="(doc, dIdx) in msg.documents" :key="dIdx" class="cited-doc-card">
-                    <span class="doc-cat-tag">{{ doc.category }}</span>
-                    <h5 class="cited-doc-title">{{ doc.title }}</h5>
-                    <span class="cited-doc-code">{{ doc.code }}</span>
+                    <span class="doc-cat-tag">
+                      {{ doc.category }}
+                    </span>
+
+                    <h5 class="cited-doc-title">
+                      {{ doc.title }}
+                    </h5>
+
+                    <span class="cited-doc-code">
+                      {{ doc.code }}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -439,37 +707,43 @@
           </div>
         </div>
 
-        <!-- Input Bar Inferior -->
         <div class="ai-input-bar">
           <button type="button" class="btn-clear" title="Limpar mensagens" @click="clearChat">
             <Trash2 :size="18" />
           </button>
+
           <input
             v-model="aiInputQuery"
             placeholder="Digite sua mensagem para o assistente de engenharia..."
             class="ai-input"
             @keyup.enter="handleSendAiMessage"
           />
+
           <button type="button" class="btn-send-ai" @click="handleSendAiMessage">
             <Send :size="16" />
           </button>
         </div>
       </section>
 
-      <!-- Ações Rápidas de Operação (Adaptadas por Perfil) -->
+      <!-- =====================================================
+           AÇÕES RÁPIDAS
+      ====================================================== -->
+
       <section class="quick-actions-section">
         <h3 class="section-label">
-          AÇÕES RÁPIDAS DE OPERAÇÃO — {{ props.currentUser?.role?.toUpperCase() || 'ENGENHARIA' }}
+          AÇÕES RÁPIDAS DE OPERAÇÃO —
+          {{ props.currentUser?.role?.toUpperCase() || 'ENGENHARIA' }}
         </h3>
 
-        <!-- Grid Administrador -->
+        <!-- ADMIN -->
+
         <div v-if="props.currentUser?.role === 'Administrador'" class="actions-grid">
           <button class="action-card primary-action" @click="showUserModal = true">
             <UserPlus :size="18" />
             <span>Gestão de Usuários</span>
           </button>
 
-          <button class="action-card">
+          <button class="action-card" @click="openUploadModal">
             <Upload :size="18" />
             <span>Importar Arquivos</span>
           </button>
@@ -485,7 +759,8 @@
           </button>
         </div>
 
-        <!-- Grid Qualidade -->
+        <!-- QUALIDADE -->
+
         <div v-else-if="props.currentUser?.role === 'Qualidade'" class="actions-grid">
           <button class="action-card primary-action">
             <ShieldCheck :size="18" />
@@ -508,9 +783,11 @@
           </button>
         </div>
 
-        <!-- Grid Engenharia / Padrão -->
+        <!-- ENGENHARIA -->
+
         <div v-else class="actions-grid">
-          <button class="action-card primary-action">
+          <!-- AKA-34 -->
+          <button class="action-card primary-action" @click="openUploadModal">
             <Upload :size="18" />
             <span>Subir Novo Arquivo</span>
           </button>
@@ -532,10 +809,14 @@
         </div>
       </section>
 
-      <!-- Documentos Técnicos Recentes -->
+      <!-- =====================================================
+           DOCUMENTOS RECENTES
+      ====================================================== -->
+
       <section class="recent-docs-section">
         <div class="section-header-row">
           <h3 class="section-title">Documentos Técnicos Recentes</h3>
+
           <a href="#" class="link-see-all" @click.prevent>
             <span>Ver todos os arquivos</span>
             <ArrowRight :size="16" />
@@ -545,44 +826,270 @@
         <div class="documents-grid">
           <div v-for="doc in recentDocuments" :key="doc.id" class="document-card">
             <div class="doc-header">
-              <span class="doc-category-badge">{{ doc.category }}</span>
-              <span :class="['doc-status-badge', doc.statusClass]">{{ doc.status }}</span>
+              <span class="doc-category-badge">
+                {{ doc.category }}
+              </span>
+
+              <span :class="['doc-status-badge', doc.statusClass]">
+                {{ doc.status }}
+              </span>
             </div>
 
-            <h4 class="doc-title">{{ doc.title }}</h4>
+            <h4 class="doc-title">
+              {{ doc.title }}
+            </h4>
+
             <div class="doc-footer">
-              <span class="doc-code">{{ doc.code }}</span>
-              <span class="doc-time">{{ doc.time }}</span>
+              <span class="doc-code">
+                {{ doc.code }}
+              </span>
+
+              <span class="doc-time">
+                {{ doc.time }}
+              </span>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- Modal de Gestão de Usuários (Administrador) -->
+      <!-- =====================================================
+           MODAL DE UPLOAD - AKA-34
+      ====================================================== -->
+
+      <div v-if="showUploadModal" class="modal-overlay" @click.self="closeUploadModal">
+        <div class="upload-modal-card fade-in">
+          <!-- HEADER -->
+
+          <div class="upload-modal-header">
+            <div class="upload-title-box">
+              <div class="upload-icon-box">
+                <FileUp :size="22" />
+              </div>
+
+              <div>
+                <h3>Enviar novo arquivo</h3>
+
+                <p>Adicione um documento técnico ao sistema</p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              class="close-upload-btn"
+              :disabled="uploadLoading"
+              @click="closeUploadModal"
+            >
+              <X :size="20" />
+            </button>
+          </div>
+
+          <!-- BODY -->
+
+          <div class="upload-modal-body">
+            <!-- ERRO -->
+
+            <div v-if="uploadError" class="upload-alert upload-alert-error">
+              <AlertCircle :size="18" />
+
+              <div>
+                <strong>Não foi possível enviar</strong>
+
+                <span>
+                  {{ uploadError }}
+                </span>
+              </div>
+            </div>
+
+            <!-- SUCESSO -->
+
+            <div v-if="uploadSuccess" class="upload-alert upload-alert-success">
+              <CheckCircle2 :size="18" />
+
+              <div>
+                <strong>Upload realizado</strong>
+
+                <span>
+                  {{ uploadSuccess }}
+                </span>
+              </div>
+            </div>
+
+            <!-- FORM -->
+
+            <form class="upload-form" @submit.prevent="handleUploadFile">
+              <!-- ARQUIVO -->
+
+              <div class="form-group">
+                <label for="upload-file-input" class="form-label">
+                  Arquivo
+                  <span class="required">*</span>
+                </label>
+
+                <label
+                  for="upload-file-input"
+                  class="file-upload-area"
+                  :class="{
+                    'file-selected': uploadFile,
+                  }"
+                >
+                  <input
+                    id="upload-file-input"
+                    type="file"
+                    class="file-input-hidden"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.txt"
+                    @change="handleFileChange"
+                  />
+
+                  <div class="file-upload-icon">
+                    <Upload :size="24" />
+                  </div>
+
+                  <div v-if="!uploadFile" class="file-upload-text">
+                    <strong> Clique para selecionar um arquivo </strong>
+
+                    <span> PDF, DOC, DOCX, XLS, XLSX ou TXT </span>
+
+                    <small> Tamanho máximo: 10 MB </small>
+                  </div>
+
+                  <div v-else class="file-upload-text">
+                    <strong>
+                      {{ uploadFile.name }}
+                    </strong>
+
+                    <span>
+                      {{ (uploadFile.size / 1024 / 1024).toFixed(2) }}
+                      MB
+                    </span>
+
+                    <small> Clique para substituir o arquivo </small>
+                  </div>
+                </label>
+              </div>
+
+              <!-- TÍTULO -->
+
+              <div class="form-group">
+                <label for="upload-title" class="form-label">
+                  Título do documento
+                  <span class="required">*</span>
+                </label>
+
+                <input
+                  id="upload-title"
+                  v-model="uploadTitle"
+                  type="text"
+                  class="upload-input"
+                  placeholder="Ex: Relatório de Inspeção Estrutural"
+                  maxlength="150"
+                />
+              </div>
+
+              <!-- CATEGORIA -->
+
+              <div class="form-group">
+                <label for="upload-category" class="form-label">
+                  Categoria
+                  <span class="required">*</span>
+                </label>
+
+                <select
+                  id="upload-category"
+                  v-model="uploadCategory"
+                  class="upload-input upload-select"
+                >
+                  <option value="" disabled>Selecione uma categoria</option>
+
+                  <option value="Aeroestrutura">Aeroestrutura</option>
+
+                  <option value="Sistemas Críticos">Sistemas Críticos</option>
+
+                  <option value="Logística">Logística</option>
+
+                  <option value="Manutenção">Manutenção</option>
+
+                  <option value="Qualidade">Qualidade</option>
+
+                  <option value="Engenharia">Engenharia</option>
+                </select>
+              </div>
+
+              <!-- DESCRIÇÃO -->
+
+              <div class="form-group">
+                <div class="description-label-row">
+                  <label for="upload-description" class="form-label"> Descrição </label>
+
+                  <span class="character-counter"> {{ uploadDescription.length }}/500 </span>
+                </div>
+
+                <textarea
+                  id="upload-description"
+                  v-model="uploadDescription"
+                  class="upload-input upload-textarea"
+                  placeholder="Informe uma breve descrição do documento..."
+                  maxlength="500"
+                  rows="4"
+                />
+              </div>
+
+              <!-- BOTÕES -->
+
+              <div class="upload-form-actions">
+                <button
+                  type="button"
+                  class="upload-cancel-btn"
+                  :disabled="uploadLoading"
+                  @click="closeUploadModal"
+                >
+                  Cancelar
+                </button>
+
+                <button type="submit" class="upload-submit-btn" :disabled="uploadLoading">
+                  <span v-if="uploadLoading" class="loading-spinner" />
+
+                  <Upload v-else :size="17" />
+
+                  <span>
+                    {{ uploadLoading ? 'Enviando...' : 'Enviar arquivo' }}
+                  </span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- =====================================================
+           MODAL DE GESTÃO DE USUÁRIOS
+      ====================================================== -->
+
       <div v-if="showUserModal" class="modal-overlay" @click.self="showUserModal = false">
         <div class="user-modal-card fade-in">
           <div class="modal-header">
             <div class="modal-title-box">
               <UserCheck :size="22" class="modal-icon" />
+
               <h3>Gestão de Usuários do Sistema</h3>
             </div>
+
             <button class="close-btn" @click="showUserModal = false">&times;</button>
           </div>
 
           <div class="modal-body">
-            <!-- Mensagens de Feedback no Modal -->
             <div v-if="userModalSuccess" class="modal-alert alert-success">
               <CheckCircle2 :size="16" />
               <span>{{ userModalSuccess }}</span>
             </div>
+
             <div v-if="userModalError" class="modal-alert alert-error">
               <AlertCircle :size="16" />
               <span>{{ userModalError }}</span>
             </div>
 
-            <!-- Formulário Novo Usuário -->
             <form class="new-user-form" @submit.prevent="handleCreateUser">
               <h4>Cadastrar Novo Usuário</h4>
+
               <div class="form-row">
                 <input
                   v-model="newUserName"
@@ -591,6 +1098,7 @@
                   class="modal-input"
                   required
                 />
+
                 <input
                   v-model="newUserEmail"
                   type="email"
@@ -599,12 +1107,16 @@
                   required
                 />
               </div>
+
               <div class="form-row">
                 <select v-model="newUserRole" class="modal-select">
                   <option value="Engenharia">Engenharia</option>
+
                   <option value="Qualidade">Qualidade</option>
+
                   <option value="Administrador">Administrador</option>
                 </select>
+
                 <input
                   v-model="newUserMatricula"
                   type="text"
@@ -612,25 +1124,38 @@
                   class="modal-input"
                 />
               </div>
+
               <button type="submit" class="btn-create-user">
                 <UserPlus :size="16" />
-                <span>Cadastrar Usuário</span>
+
+                <span> Cadastrar Usuário </span>
               </button>
             </form>
 
             <div class="modal-divider"></div>
 
-            <!-- Lista de Usuários Existentes -->
             <h4>Usuários de Demonstração</h4>
+
             <div class="users-list">
               <div v-for="u in demoUsersList" :key="u.id" class="user-item">
                 <div class="user-item-info">
-                  <strong>{{ u.name }}</strong>
-                  <span>{{ u.email }}</span>
+                  <strong>
+                    {{ u.name }}
+                  </strong>
+
+                  <span>
+                    {{ u.email }}
+                  </span>
                 </div>
+
                 <div class="user-item-badge">
-                  <span class="user-role-tag">{{ u.role }}</span>
-                  <span class="user-mat-tag">{{ u.matricula }}</span>
+                  <span class="user-role-tag">
+                    {{ u.role }}
+                  </span>
+
+                  <span class="user-mat-tag">
+                    {{ u.matricula }}
+                  </span>
                 </div>
               </div>
             </div>
@@ -642,6 +1167,10 @@
 </template>
 
 <style scoped>
+  /* =========================================================
+   DASHBOARD
+========================================================= */
+
   .dashboard-wrapper {
     display: flex;
     min-height: 100vh;
@@ -649,7 +1178,10 @@
     background-color: #f8fafc;
   }
 
-  /* Sidebar */
+  /* =========================================================
+   SIDEBAR
+========================================================= */
+
   .sidebar {
     width: 270px;
     background-color: #0f172a;
@@ -753,12 +1285,14 @@
     margin: 0;
   }
 
-  /* Main Content */
+  /* =========================================================
+   MAIN
+========================================================= */
+
   .main-content {
     flex: 1;
     padding: 2rem 2.5rem;
     overflow-y: auto;
-
     max-height: 100vh;
   }
 
@@ -779,7 +1313,6 @@
   .page-subtitle {
     font-size: 0.9rem;
     color: #64748b;
-
     margin: 0;
   }
 
@@ -822,7 +1355,10 @@
     color: #7e22ce;
   }
 
-  /* AI Card */
+  /* =========================================================
+   AI
+========================================================= */
+
   .ai-assistant-card {
     background: #ffffff;
     border-radius: 14px;
@@ -953,7 +1489,6 @@
     border: none;
     color: #94a3b8;
     cursor: pointer;
-
     padding: 0.35rem;
   }
 
@@ -978,7 +1513,10 @@
     justify-content: center;
   }
 
-  /* Quick Actions */
+  /* =========================================================
+   QUICK ACTIONS
+========================================================= */
+
   .quick-actions-section {
     margin-bottom: 2rem;
   }
@@ -1030,7 +1568,10 @@
     color: #ffffff;
   }
 
-  /* Recent Documents */
+  /* =========================================================
+   DOCUMENTOS
+========================================================= */
+
   .recent-docs-section {
     margin-bottom: 2rem;
   }
@@ -1126,11 +1667,13 @@
     margin-top: auto;
   }
 
-  /* Modal de Gestão de Usuários */
+  /* =========================================================
+   MODAL GERAL
+========================================================= */
+
   .modal-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
+    inset: 0;
     width: 100vw;
     height: 100vh;
     background: rgba(15, 23, 42, 0.6);
@@ -1141,6 +1684,313 @@
     justify-content: center;
     padding: 1.5rem;
   }
+
+  /* =========================================================
+   MODAL UPLOAD - AKA-34
+========================================================= */
+
+  .upload-modal-card {
+    background: #ffffff;
+    width: 100%;
+    max-width: 620px;
+    max-height: 90vh;
+    border-radius: 16px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+  }
+
+  .upload-modal-header {
+    background: #0f172a;
+    color: #ffffff;
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .upload-title-box {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+  }
+
+  .upload-icon-box {
+    width: 40px;
+    height: 40px;
+    border-radius: 9px;
+    background: #7e22ce;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+  }
+
+  .upload-title-box h3 {
+    margin: 0 0 0.2rem;
+    font-size: 1.05rem;
+    font-weight: 700;
+  }
+
+  .upload-title-box p {
+    margin: 0;
+    color: #94a3b8;
+    font-size: 0.75rem;
+  }
+
+  .close-upload-btn {
+    width: 34px;
+    height: 34px;
+    border: none;
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .close-upload-btn:hover {
+    background: #1e293b;
+    color: #ffffff;
+  }
+
+  .upload-modal-body {
+    padding: 1.5rem;
+    max-height: calc(90vh - 90px);
+    overflow-y: auto;
+  }
+
+  .upload-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.7rem;
+    padding: 0.85rem 1rem;
+    border-radius: 9px;
+    margin-bottom: 1.25rem;
+    font-size: 0.82rem;
+  }
+
+  .upload-alert div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .upload-alert strong {
+    font-size: 0.82rem;
+  }
+
+  .upload-alert span {
+    font-size: 0.78rem;
+  }
+
+  .upload-alert-error {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+  }
+
+  .upload-alert-success {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    color: #166534;
+  }
+
+  .upload-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+
+  .form-label {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #334155;
+  }
+
+  .required {
+    color: #dc2626;
+  }
+
+  .file-input-hidden {
+    display: none;
+  }
+
+  .file-upload-area {
+    min-height: 145px;
+    border: 2px dashed #cbd5e1;
+    border-radius: 10px;
+    background: #f8fafc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    padding: 1.25rem;
+  }
+
+  .file-upload-area:hover {
+    border-color: #7e22ce;
+    background: #faf5ff;
+  }
+
+  .file-upload-area.file-selected {
+    border-color: #7e22ce;
+    background: #faf5ff;
+    border-style: solid;
+  }
+
+  .file-upload-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: #f3e8ff;
+    color: #7e22ce;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .file-upload-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .file-upload-text strong {
+    color: #334155;
+    font-size: 0.85rem;
+  }
+
+  .file-upload-text span {
+    color: #64748b;
+    font-size: 0.78rem;
+  }
+
+  .file-upload-text small {
+    color: #94a3b8;
+    font-size: 0.7rem;
+  }
+
+  .upload-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.75rem 0.85rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    outline: none;
+    background: #ffffff;
+    color: #0f172a;
+    font-size: 0.85rem;
+    transition:
+      border-color 0.2s,
+      box-shadow 0.2s;
+  }
+
+  .upload-input:focus {
+    border-color: #7e22ce;
+    box-shadow: 0 0 0 3px rgba(126, 34, 206, 0.08);
+  }
+
+  .upload-select {
+    cursor: pointer;
+  }
+
+  .upload-textarea {
+    resize: vertical;
+    min-height: 90px;
+    font-family: inherit;
+  }
+
+  .description-label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .character-counter {
+    color: #94a3b8;
+    font-size: 0.7rem;
+  }
+
+  .upload-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid #f1f5f9;
+  }
+
+  .upload-cancel-btn,
+  .upload-submit-btn {
+    padding: 0.7rem 1rem;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: all 0.2s;
+  }
+
+  .upload-cancel-btn {
+    background: #ffffff;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+  }
+
+  .upload-cancel-btn:hover {
+    background: #f8fafc;
+  }
+
+  .upload-submit-btn {
+    background: #7e22ce;
+    color: #ffffff;
+    border: 1px solid #7e22ce;
+    min-width: 135px;
+  }
+
+  .upload-submit-btn:hover:not(:disabled) {
+    background: #6b21a8;
+  }
+
+  .upload-submit-btn:disabled,
+  .upload-cancel-btn:disabled,
+  .close-upload-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .loading-spinner {
+    width: 15px;
+    height: 15px;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    border-top-color: #ffffff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* =========================================================
+   MODAL USUÁRIOS
+========================================================= */
 
   .user-modal-card {
     background: #ffffff;
@@ -1197,6 +2047,16 @@
     border-radius: 8px;
     font-size: 0.85rem;
     margin-bottom: 1rem;
+  }
+
+  .alert-success {
+    background: #dcfce7;
+    color: #166534;
+  }
+
+  .alert-error {
+    background: #fee2e2;
+    color: #991b1b;
   }
 
   .new-user-form h4,
@@ -1299,14 +2159,75 @@
     color: #64748b;
   }
 
+  /* =========================================================
+   RESPONSIVO
+========================================================= */
+
   @media (max-width: 900px) {
     .dashboard-wrapper {
       flex-direction: column;
-      justify-content: space-between;
       gap: 1rem;
-      transition: all 0.2s;
     }
+
     .sidebar {
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .main-content {
+      padding: 1.5rem;
+      max-height: none;
+    }
+
+    .top-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+
+    .user-profile-badge {
+      width: 100%;
+      box-sizing: border-box;
+      justify-content: flex-end;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .main-content {
+      padding: 1rem;
+    }
+
+    .page-title {
+      font-size: 1.4rem;
+    }
+
+    .ai-tabs {
+      overflow-x: auto;
+    }
+
+    .tab-btn {
+      white-space: nowrap;
+    }
+
+    .form-row {
+      flex-direction: column;
+    }
+
+    .upload-modal-body {
+      padding: 1rem;
+    }
+
+    .file-upload-area {
+      flex-direction: column;
+      text-align: center;
+    }
+
+    .upload-form-actions {
+      flex-direction: column-reverse;
+    }
+
+    .upload-cancel-btn,
+    .upload-submit-btn {
       width: 100%;
     }
   }
