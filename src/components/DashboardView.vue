@@ -23,6 +23,8 @@
     AlertCircle,
     Loader2,
     BookOpen,
+    X,
+    FileUp,
   } from 'lucide-vue-next';
 
   const props = defineProps({
@@ -121,6 +123,196 @@
     newUserName.value = '';
     newUserEmail.value = '';
     newUserMatricula.value = '';
+  };
+
+  /* =========================================================
+     UPLOAD DE ARQUIVOS - AKA-34
+  ========================================================= */
+
+  const showUploadModal = ref(false);
+
+  const uploadFile = ref(null);
+  const uploadTitle = ref('');
+  const uploadCategory = ref('');
+  const uploadDescription = ref('');
+
+  const uploadError = ref('');
+  const uploadSuccess = ref('');
+  const uploadLoading = ref(false);
+
+  const allowedFileTypes = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'text/plain',
+  ];
+
+  const allowedExtensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt'];
+
+  const maxFileSize = 10 * 1024 * 1024;
+
+  const openUploadModal = () => {
+    uploadError.value = '';
+    uploadSuccess.value = '';
+
+    showUploadModal.value = true;
+  };
+
+  const closeUploadModal = () => {
+    if (uploadLoading.value) return;
+
+    showUploadModal.value = false;
+    resetUploadForm();
+  };
+
+  const resetUploadForm = () => {
+    uploadFile.value = null;
+    uploadTitle.value = '';
+    uploadCategory.value = '';
+    uploadDescription.value = '';
+    uploadError.value = '';
+    uploadSuccess.value = '';
+
+    const fileInput = document.getElementById('upload-file-input');
+
+    if (fileInput) {
+      fileInput.value = '';
+    }
+  };
+
+  const handleFileChange = (event) => {
+    uploadError.value = '';
+    uploadSuccess.value = '';
+
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      uploadFile.value = null;
+      return;
+    }
+
+    const extension = `.${file.name.split('.').pop()?.toLowerCase()}`;
+
+    if (!allowedFileTypes.includes(file.type) && !allowedExtensions.includes(extension)) {
+      uploadError.value = 'Tipo de arquivo inválido. Envie PDF, DOC, DOCX, XLS, XLSX ou TXT.';
+
+      uploadFile.value = null;
+      event.target.value = '';
+
+      return;
+    }
+
+    if (file.size > maxFileSize) {
+      uploadError.value = 'O arquivo ultrapassa o limite máximo de 10 MB.';
+
+      uploadFile.value = null;
+      event.target.value = '';
+
+      return;
+    }
+
+    uploadFile.value = file;
+
+    if (!uploadTitle.value) {
+      uploadTitle.value = file.name.replace(/\.[^/.]+$/, '');
+    }
+  };
+
+  const validateUploadForm = () => {
+    uploadError.value = '';
+
+    if (!uploadFile.value) {
+      uploadError.value = 'Selecione um arquivo para realizar o upload.';
+      return false;
+    }
+
+    if (!uploadTitle.value.trim()) {
+      uploadError.value = 'Informe o título do documento.';
+      return false;
+    }
+
+    if (!uploadCategory.value) {
+      uploadError.value = 'Selecione uma categoria para o documento.';
+      return false;
+    }
+
+    if (uploadDescription.value.length > 500) {
+      uploadError.value = 'A descrição não pode ultrapassar 500 caracteres.';
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleUploadFile = async () => {
+    uploadSuccess.value = '';
+    uploadError.value = '';
+
+    if (!validateUploadForm()) {
+      return;
+    }
+
+    uploadLoading.value = true;
+
+    try {
+      // Cria o formulário que será enviado para o Django
+      const formData = new FormData();
+
+      // Arquivo selecionado
+      formData.append('file', uploadFile.value);
+
+      // Dados do formulário
+      formData.append('title', uploadTitle.value.trim());
+      formData.append('category', uploadCategory.value);
+      formData.append('description', uploadDescription.value.trim());
+
+      // Envia para o backend Django
+      // Token salvo no login (LoginView) — o endpoint exige Authorization: Bearer <token>
+      const token = localStorage.getItem('akaer_token');
+
+      const response = await fetch('http://localhost:8000/api/documents/upload/', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+
+      // Lê a resposta do Django (tolera resposta que não é JSON, ex.: erro 500 em HTML)
+      let data = null;
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
+      }
+
+      // Se o Django retornar erro
+      if (!response.ok) {
+        throw new Error(data?.detail || 'Não foi possível enviar o arquivo.');
+      }
+
+      // SUCESSO
+      uploadSuccess.value = data?.message || `Arquivo "${uploadTitle.value}" enviado com sucesso!`;
+
+      // Limpa os campos depois do upload
+      uploadFile.value = null;
+      uploadTitle.value = '';
+      uploadCategory.value = '';
+      uploadDescription.value = '';
+
+      // Limpa o input de arquivo
+      const fileInput = document.getElementById('upload-file-input');
+
+      if (fileInput) {
+        fileInput.value = '';
+      }
+    } catch (error) {
+      console.error('Erro no upload:', error);
+
+      uploadError.value = error?.message || 'Não foi possível enviar o arquivo. Tente novamente.';
+    } finally {
+      uploadLoading.value = false;
+    }
   };
 
   // Interação Q&A (IA com Fontes e Mocking Avançado)
@@ -696,7 +888,7 @@
             <span>Gestão de Usuários</span>
           </button>
 
-          <button class="action-card">
+          <button class="action-card" @click="openUploadModal">
             <Upload :size="18" />
             <span>Importar Arquivos</span>
           </button>
@@ -737,7 +929,7 @@
 
         <!-- Grid Engenharia / Padrão -->
         <div v-else class="actions-grid">
-          <button class="action-card primary-action">
+          <button class="action-card primary-action" @click="openUploadModal">
             <Upload :size="18" />
             <span>Subir Novo Arquivo</span>
           </button>
@@ -784,6 +976,214 @@
           </div>
         </div>
       </section>
+
+      <!-- =====================================================
+           MODAL DE UPLOAD - AKA-34
+      ====================================================== -->
+
+      <div v-if="showUploadModal" class="modal-overlay" @click.self="closeUploadModal">
+        <div class="upload-modal-card fade-in">
+          <!-- HEADER -->
+
+          <div class="upload-modal-header">
+            <div class="upload-title-box">
+              <div class="upload-icon-box">
+                <FileUp :size="22" />
+              </div>
+
+              <div>
+                <h3>Enviar novo arquivo</h3>
+
+                <p>Adicione um documento técnico ao sistema</p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              class="close-upload-btn"
+              :disabled="uploadLoading"
+              @click="closeUploadModal"
+            >
+              <X :size="20" />
+            </button>
+          </div>
+
+          <!-- BODY -->
+
+          <div class="upload-modal-body">
+            <!-- ERRO -->
+
+            <div v-if="uploadError" class="upload-alert upload-alert-error">
+              <AlertCircle :size="18" />
+
+              <div>
+                <strong>Não foi possível enviar</strong>
+
+                <span>
+                  {{ uploadError }}
+                </span>
+              </div>
+            </div>
+
+            <!-- SUCESSO -->
+
+            <div v-if="uploadSuccess" class="upload-alert upload-alert-success">
+              <CheckCircle2 :size="18" />
+
+              <div>
+                <strong>Upload realizado</strong>
+
+                <span>
+                  {{ uploadSuccess }}
+                </span>
+              </div>
+            </div>
+
+            <!-- FORM -->
+
+            <form class="upload-form" @submit.prevent="handleUploadFile">
+              <!-- ARQUIVO -->
+
+              <div class="form-group">
+                <label for="upload-file-input" class="form-label">
+                  Arquivo
+                  <span class="required">*</span>
+                </label>
+
+                <label
+                  for="upload-file-input"
+                  class="file-upload-area"
+                  :class="{
+                    'file-selected': uploadFile,
+                  }"
+                >
+                  <input
+                    id="upload-file-input"
+                    type="file"
+                    class="file-input-hidden"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.txt"
+                    @change="handleFileChange"
+                  />
+
+                  <div class="file-upload-icon">
+                    <Upload :size="24" />
+                  </div>
+
+                  <div v-if="!uploadFile" class="file-upload-text">
+                    <strong> Clique para selecionar um arquivo </strong>
+
+                    <span> PDF, DOC, DOCX, XLS, XLSX ou TXT </span>
+
+                    <small> Tamanho máximo: 10 MB </small>
+                  </div>
+
+                  <div v-else class="file-upload-text">
+                    <strong>
+                      {{ uploadFile.name }}
+                    </strong>
+
+                    <span>
+                      {{ (uploadFile.size / 1024 / 1024).toFixed(2) }}
+                      MB
+                    </span>
+
+                    <small> Clique para substituir o arquivo </small>
+                  </div>
+                </label>
+              </div>
+
+              <!-- TÍTULO -->
+
+              <div class="form-group">
+                <label for="upload-title" class="form-label">
+                  Título do documento
+                  <span class="required">*</span>
+                </label>
+
+                <input
+                  id="upload-title"
+                  v-model="uploadTitle"
+                  type="text"
+                  class="upload-input"
+                  placeholder="Ex: Relatório de Inspeção Estrutural"
+                  maxlength="150"
+                />
+              </div>
+
+              <!-- CATEGORIA -->
+
+              <div class="form-group">
+                <label for="upload-category" class="form-label">
+                  Categoria
+                  <span class="required">*</span>
+                </label>
+
+                <select
+                  id="upload-category"
+                  v-model="uploadCategory"
+                  class="upload-input upload-select"
+                >
+                  <option value="" disabled>Selecione uma categoria</option>
+
+                  <option value="Aeroestrutura">Aeroestrutura</option>
+
+                  <option value="Sistemas Críticos">Sistemas Críticos</option>
+
+                  <option value="Logística">Logística</option>
+
+                  <option value="Manutenção">Manutenção</option>
+
+                  <option value="Qualidade">Qualidade</option>
+
+                  <option value="Engenharia">Engenharia</option>
+                </select>
+              </div>
+
+              <!-- DESCRIÇÃO -->
+
+              <div class="form-group">
+                <div class="description-label-row">
+                  <label for="upload-description" class="form-label"> Descrição </label>
+
+                  <span class="character-counter"> {{ uploadDescription.length }}/500 </span>
+                </div>
+
+                <textarea
+                  id="upload-description"
+                  v-model="uploadDescription"
+                  class="upload-input upload-textarea"
+                  placeholder="Informe uma breve descrição do documento..."
+                  maxlength="500"
+                  rows="4"
+                />
+              </div>
+
+              <!-- BOTÕES -->
+
+              <div class="upload-form-actions">
+                <button
+                  type="button"
+                  class="upload-cancel-btn"
+                  :disabled="uploadLoading"
+                  @click="closeUploadModal"
+                >
+                  Cancelar
+                </button>
+
+                <button type="submit" class="upload-submit-btn" :disabled="uploadLoading">
+                  <span v-if="uploadLoading" class="loading-spinner" />
+
+                  <Upload v-else :size="17" />
+
+                  <span>
+                    {{ uploadLoading ? 'Enviando...' : 'Enviar arquivo' }}
+                  </span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
 
       <!-- Modal de Gestão de Usuários (Administrador) -->
       <div v-if="showUserModal" class="modal-overlay" @click.self="showUserModal = false">
@@ -1719,5 +2119,302 @@
     .sidebar {
       width: 100%;
     }
+  }
+
+  /* =========================================================
+   MODAL UPLOAD - AKA-34
+========================================================= */
+
+  .upload-modal-card {
+    background: #ffffff;
+    width: 100%;
+    max-width: 620px;
+    max-height: 90vh;
+    border-radius: 16px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+  }
+
+  .upload-modal-header {
+    background: #0f172a;
+    color: #ffffff;
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .upload-title-box {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+  }
+
+  .upload-icon-box {
+    width: 40px;
+    height: 40px;
+    border-radius: 9px;
+    background: #7e22ce;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+  }
+
+  .upload-title-box h3 {
+    margin: 0 0 0.2rem;
+    font-size: 1.05rem;
+    font-weight: 700;
+  }
+
+  .upload-title-box p {
+    margin: 0;
+    color: #94a3b8;
+    font-size: 0.75rem;
+  }
+
+  .close-upload-btn {
+    width: 34px;
+    height: 34px;
+    border: none;
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .close-upload-btn:hover {
+    background: #1e293b;
+    color: #ffffff;
+  }
+
+  .upload-modal-body {
+    padding: 1.5rem;
+    max-height: calc(90vh - 90px);
+    overflow-y: auto;
+  }
+
+  .upload-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.7rem;
+    padding: 0.85rem 1rem;
+    border-radius: 9px;
+    margin-bottom: 1.25rem;
+    font-size: 0.82rem;
+  }
+
+  .upload-alert div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .upload-alert strong {
+    font-size: 0.82rem;
+  }
+
+  .upload-alert span {
+    font-size: 0.78rem;
+  }
+
+  .upload-alert-error {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+  }
+
+  .upload-alert-success {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    color: #166534;
+  }
+
+  .upload-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+
+  .form-label {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #334155;
+  }
+
+  .required {
+    color: #dc2626;
+  }
+
+  .file-input-hidden {
+    display: none;
+  }
+
+  .file-upload-area {
+    min-height: 145px;
+    border: 2px dashed #cbd5e1;
+    border-radius: 10px;
+    background: #f8fafc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    padding: 1.25rem;
+  }
+
+  .file-upload-area:hover {
+    border-color: #7e22ce;
+    background: #faf5ff;
+  }
+
+  .file-upload-area.file-selected {
+    border-color: #7e22ce;
+    background: #faf5ff;
+    border-style: solid;
+  }
+
+  .file-upload-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: #f3e8ff;
+    color: #7e22ce;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .file-upload-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .file-upload-text strong {
+    color: #334155;
+    font-size: 0.85rem;
+  }
+
+  .file-upload-text span {
+    color: #64748b;
+    font-size: 0.78rem;
+  }
+
+  .file-upload-text small {
+    color: #94a3b8;
+    font-size: 0.7rem;
+  }
+
+  .upload-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.75rem 0.85rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    outline: none;
+    background: #ffffff;
+    color: #0f172a;
+    font-size: 0.85rem;
+    transition:
+      border-color 0.2s,
+      box-shadow 0.2s;
+  }
+
+  .upload-input:focus {
+    border-color: #7e22ce;
+    box-shadow: 0 0 0 3px rgba(126, 34, 206, 0.08);
+  }
+
+  .upload-select {
+    cursor: pointer;
+  }
+
+  .upload-textarea {
+    resize: vertical;
+    min-height: 90px;
+    font-family: inherit;
+  }
+
+  .description-label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .character-counter {
+    color: #94a3b8;
+    font-size: 0.7rem;
+  }
+
+  .upload-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid #f1f5f9;
+  }
+
+  .upload-cancel-btn,
+  .upload-submit-btn {
+    padding: 0.7rem 1rem;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: all 0.2s;
+  }
+
+  .upload-cancel-btn {
+    background: #ffffff;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+  }
+
+  .upload-cancel-btn:hover {
+    background: #f8fafc;
+  }
+
+  .upload-submit-btn {
+    background: #7e22ce;
+    color: #ffffff;
+    border: 1px solid #7e22ce;
+    min-width: 135px;
+  }
+
+  .upload-submit-btn:hover:not(:disabled) {
+    background: #6b21a8;
+  }
+
+  .upload-submit-btn:disabled,
+  .upload-cancel-btn:disabled,
+  .close-upload-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .loading-spinner {
+    width: 15px;
+    height: 15px;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    border-top-color: #ffffff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
   }
 </style>
