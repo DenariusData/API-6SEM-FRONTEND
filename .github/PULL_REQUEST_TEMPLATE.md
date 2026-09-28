@@ -5,6 +5,7 @@
 ## Issue/Tarefa relacionada
 
 <!-- Link do Jira / número da issue -->
+
 Jira:
 
 ## Tipo de mudança
@@ -19,6 +20,7 @@ Jira:
 ## Como testar
 
 <!-- Passo a passo para quem for revisar conseguir validar -->
+
 1.
 2.
 
