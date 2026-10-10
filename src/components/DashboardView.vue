@@ -317,6 +317,49 @@
 
   // Interação Q&A (IA com Fontes e Mocking Avançado)
   const aiInputQuery = ref('');
+  const selectedLanguage = ref(localStorage.getItem('ai-language') || 'pt-BR');
+
+  const aiTexts = {
+    'pt-BR': {
+      language: 'Idioma',
+      portuguese: 'Português',
+      english: 'English',
+      placeholder: 'Digite sua pergunta técnica (ex: limites de stress, manuais de manutenção)...',
+      send: 'Enviar',
+      processing: 'Processando',
+      clearChat: 'Limpar histórico de chat',
+      sources: 'Fontes e Referências',
+      revision: 'Revisão',
+      page: 'Página',
+      processingMessage: 'Consultando base de conhecimento e gerando resposta com fontes...',
+      defaultCategory: 'Documento Técnico',
+      defaultPage: 'Pág. 1',
+    },
+
+    en: {
+      language: 'Language',
+      portuguese: 'Português',
+      english: 'English',
+      placeholder: 'Enter your technical question (e.g. stress limits, maintenance manuals)...',
+      send: 'Send',
+      processing: 'Processing',
+      clearChat: 'Clear chat history',
+      sources: 'Sources and References',
+      revision: 'Revision',
+      page: 'Page',
+      processingMessage: 'Consulting the knowledge base and generating a response with sources...',
+      defaultCategory: 'Technical Document',
+      defaultPage: 'Page 1',
+    },
+  };
+
+  const currentAiTexts = computed(() => aiTexts[selectedLanguage.value]);
+
+  const changeLanguage = (language) => {
+    selectedLanguage.value = language;
+
+    localStorage.setItem('ai-language', language);
+  };
   const isProcessing = ref(false);
   const chatContainerRef = ref(null);
 
@@ -480,12 +523,13 @@
   const handleSendAiMessage = async () => {
     const queryText = aiInputQuery.value.trim();
 
-    // Critério de aceite: Pergunta vazia não é enviada
     if (!queryText || isProcessing.value) return;
 
-    const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const timeString = new Date().toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
 
-    // Adiciona a pergunta do usuário
     chatMessages.value.push({
       type: 'user',
       text: queryText,
@@ -497,38 +541,53 @@
     scrollToBottom();
 
     try {
-      // Tentativa opcional de integrar com backend se estiver rodando
       const response = await fetch('http://localhost:8000/api/ai/query/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: queryText }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: queryText,
+          language: selectedLanguage.value,
+        }),
       });
 
       if (response.ok) {
         const data = await response.json();
+
         chatMessages.value.push({
           type: 'ai',
           text: data.answer || data.text,
           sources: data.sources || [],
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          language: data.language || selectedLanguage.value,
+          timestamp: new Date().toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
         });
+
         isProcessing.value = false;
         scrollToBottom();
         return;
       }
     } catch {
-      // Se backend não responder, faz fallback gracioso para mock
+      // Se o backend não responder, utiliza o fallback local.
     }
 
-    // Simula tempo de resposta da IA (1.5 segundos) com estado de processando ativo
     setTimeout(() => {
       const mockAnswer = generateMockAiResponse(queryText);
+
       chatMessages.value.push({
         type: 'ai',
         text: mockAnswer.text,
         sources: mockAnswer.sources,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        language: selectedLanguage.value,
+        timestamp: new Date().toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
       });
+
       isProcessing.value = false;
       scrollToBottom();
     }, 1500);
@@ -785,36 +844,59 @@
                 <Sparkles :size="16" />
               </div>
               <div class="ai-response-content">
-                <p class="ai-text">{{ msg.text }}</p>
+                <div v-if="msg.language" class="ai-language-tag">
+                  {{ msg.language === 'en' ? currentAiTexts.english : currentAiTexts.portuguese }}
+                </div>
+
+                <p class="ai-text">
+                  {{ msg.text }}
+                </p>
 
                 <!-- Fontes Consultadas (Critério: Nome do Documento, Revisão e Página logo abaixo) -->
                 <div v-if="msg.sources && msg.sources.length" class="sources-container">
                   <div class="sources-title-row">
                     <BookOpen :size="14" class="sources-icon" />
-                    <span>Fontes e Referências ({{ msg.sources.length }})</span>
+
+                    <span>
+                      {{ currentAiTexts.sources }}
+                      ({{ msg.sources.length }})
+                    </span>
                   </div>
+
                   <div class="sources-grid">
                     <div v-for="(src, sIdx) in msg.sources" :key="sIdx" class="source-card">
                       <div class="source-card-header">
-                        <span class="source-category-tag">{{
-                          src.category || 'Documento Técnico'
-                        }}</span>
-                        <span v-if="src.code" class="source-code-tag">{{ src.code }}</span>
+                        <span class="source-category-tag">
+                          {{ src.category || currentAiTexts.defaultCategory }}
+                        </span>
+
+                        <span v-if="src.code" class="source-code-tag">
+                          {{ src.code }}
+                        </span>
                       </div>
-                      <h5 class="source-doc-name">{{ src.documentName || src.title }}</h5>
+
+                      <h5 class="source-doc-name">
+                        {{ src.documentName || src.title }}
+                      </h5>
+
                       <div class="source-details-row">
                         <span class="source-meta-item">
-                          <strong>Revisão:</strong> {{ src.revision || 'Rev. 01' }}
+                          <strong> {{ currentAiTexts.revision }}: </strong>
+
+                          {{ src.revision || 'Rev. 01' }}
                         </span>
-                        <span class="source-meta-dot">•</span>
+
+                        <span class="source-meta-dot"> • </span>
+
                         <span class="source-meta-item">
-                          <strong>Página:</strong> {{ src.page || 'Pág. 1' }}
+                          <strong> {{ currentAiTexts.page }}: </strong>
+
+                          {{ src.page || currentAiTexts.defaultPage }}
                         </span>
                       </div>
                     </div>
                   </div>
                 </div>
-
                 <!-- Suporte a documentos simplificados Legados caso existam -->
                 <div v-else-if="msg.documents && msg.documents.length" class="cited-docs-grid">
                   <div v-for="(doc, dIdx) in msg.documents" :key="dIdx" class="cited-doc-card">
@@ -836,7 +918,7 @@
               <div class="ai-response-content">
                 <div class="processing-status-card">
                   <Loader2 :size="18" class="spin-icon" />
-                  <span>Consultando base de conhecimento e gerando resposta com fontes...</span>
+                  <span> {{ currentAiTexts.processingMessage }} </span>
                 </div>
               </div>
             </div>
@@ -848,20 +930,48 @@
           <button
             type="button"
             class="btn-clear"
-            title="Limpar histórico de chat"
+            :title="currentAiTexts.clearChat"
             :disabled="isProcessing"
             @click="clearChat"
           >
             <Trash2 :size="18" />
           </button>
+
+          <div class="ai-language-selector">
+            <span class="ai-language-label">
+              {{ currentAiTexts.language }}
+            </span>
+
+            <div class="ai-language-options">
+              <button
+                type="button"
+                class="ai-language-button"
+                :class="{ selected: selectedLanguage === 'pt-BR' }"
+                @click="changeLanguage('pt-BR')"
+              >
+                Português
+              </button>
+
+              <button
+                type="button"
+                class="ai-language-button"
+                :class="{ selected: selectedLanguage === 'en' }"
+                @click="changeLanguage('en')"
+              >
+                English
+              </button>
+            </div>
+          </div>
+
           <input
             v-model="aiInputQuery"
             type="text"
-            placeholder="Digite sua pergunta técnica (ex: limites de stress, manuais de manutenção)..."
+            :placeholder="currentAiTexts.placeholder"
             class="ai-input"
             :disabled="isProcessing"
             @keyup.enter="handleSendAiMessage"
           />
+
           <button
             type="button"
             class="btn-send-ai"
@@ -869,8 +979,12 @@
             @click="handleSendAiMessage"
           >
             <Loader2 v-if="isProcessing" :size="16" class="spin-icon" />
+
             <Send v-else :size="16" />
-            <span class="btn-send-label">{{ isProcessing ? 'Processando' : 'Enviar' }}</span>
+
+            <span class="btn-send-label">
+              {{ isProcessing ? currentAiTexts.processing : currentAiTexts.send }}
+            </span>
           </button>
         </div>
       </section>
@@ -1725,20 +1839,25 @@
   .ai-input-bar {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 12px;
+    width: 100%;
+    box-sizing: border-box;
     background: #f8fafc;
     border: 1px solid #e2e8f0;
-    padding: 0.5rem 0.75rem;
-    border-radius: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
   }
 
   .btn-clear {
-    background: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    background: transparent;
     border: none;
     color: #94a3b8;
     cursor: pointer;
-    padding: 0.35rem;
-    transition: color 0.2s;
+    padding: 8px;
   }
 
   .btn-clear:hover:not(:disabled) {
@@ -2416,5 +2535,126 @@
     border-top-color: #ffffff;
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
+  }
+
+  /* =========================================================
+   SELETOR DE IDIOMA - AI ASSISTANT
+   ========================================================= */
+
+  .ai-language-selector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .ai-language-label {
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .ai-language-options {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 3px;
+    border: 1px solid #e2e8f0;
+    border-radius: 9px;
+    background: #f1f2f6;
+  }
+
+  .ai-input-bar .ai-language-button {
+    appearance: none;
+    -webkit-appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    outline: none;
+    background: transparent;
+    color: #64748b;
+    padding: 8px 12px;
+    margin: 0;
+    border-radius: 7px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .ai-input-bar .ai-language-button:hover {
+    background: #faf5ff;
+    color: #7e22ce;
+  }
+
+  .ai-input-bar .ai-language-button.selected {
+    border-color: #7e22ce;
+    background: #7e22ce;
+    color: #ffffff;
+    box-shadow: 0 2px 5px rgba(126, 34, 206, 0.2);
+  }
+
+  /* Campo de mensagem */
+
+  .ai-input-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .ai-input {
+    display: block;
+    flex: 1 1 0;
+    min-width: 0;
+    width: 0;
+    box-sizing: border-box;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: #0f172a;
+    padding: 10px 4px;
+    font-family: inherit;
+    font-size: 0.9rem;
+  }
+
+  .ai-input::placeholder {
+    color: #94a3b8;
+    opacity: 1;
+  }
+
+  .ai-input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .btn-clear,
+  .btn-send-ai {
+    flex-shrink: 0;
+  }
+
+  @media (max-width: 760px) {
+    .ai-input-bar {
+      flex-wrap: wrap;
+    }
+
+    .ai-language-selector {
+      order: 2;
+    }
+
+    .ai-input {
+      order: 3;
+      flex: 1 1 100%;
+      width: 100%;
+    }
+
+    .btn-send-ai {
+      order: 4;
+    }
   }
 </style>
