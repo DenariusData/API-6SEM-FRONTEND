@@ -79,6 +79,11 @@
     currentScreen.value = 'login';
   };
 
+  const onSessionExpired = () => {
+    localStorage.removeItem('akaer_token');
+    currentScreen.value = 'login';
+  };
+
   const switchProfile = (roleName) => {
     if (MOCK_PROFILES[roleName]) {
       currentUser.value = MOCK_PROFILES[roleName];
@@ -157,7 +162,11 @@
         @decline="onTermsDeclined"
       />
 
-      <DashboardView v-else-if="currentScreen === 'dashboard'" :current-user="currentUser" />
+      <DashboardView
+        v-else-if="currentScreen === 'dashboard'"
+        :current-user="currentUser"
+        @session-expired="onSessionExpired"
+      />
     </main>
   </div>
 </template>

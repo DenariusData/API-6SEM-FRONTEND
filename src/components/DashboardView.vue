@@ -27,6 +27,8 @@
     FileUp,
   } from 'lucide-vue-next';
 
+  const emit = defineEmits(['sessionExpired']);
+
   const props = defineProps({
     currentUser: {
       type: Object,
@@ -315,159 +317,12 @@
     }
   };
 
-  // Interação Q&A (IA com Fontes e Mocking Avançado)
+  // Interação Q&A (IA com fontes via pipeline RAG do backend)
   const aiInputQuery = ref('');
   const isProcessing = ref(false);
   const chatContainerRef = ref(null);
 
-  const chatMessages = ref([
-    {
-      type: 'user',
-      text: 'Quais os limites de stress para a asa do Gripen NG?',
-      timestamp: '14:30',
-    },
-    {
-      type: 'ai',
-      text: 'Com base nas especificações estruturais e relatórios de aeroestrutura da Akaer, o limite máximo de stress estático para a asa do Gripen NG em manobra supersônica (9g) é de 450 MPa. Para fadiga cíclica contínua, o limite seguro recomendado é de 310 MPa.',
-      timestamp: '14:30',
-      sources: [
-        {
-          documentName: 'Stress Test e Cargas Estruturais Asa Esquerda - Gripen NG',
-          code: 'OI-2026-A8',
-          revision: 'Rev. 04',
-          page: 'Pág. 42',
-          category: 'Aeroestrutura',
-        },
-        {
-          documentName: 'Certificado de Análise Estrutural do Trem de Pouso',
-          code: 'CA-4028-E',
-          revision: 'Rev. B',
-          page: 'Pág. 15',
-          category: 'Sistemas Críticos',
-        },
-        {
-          documentName: 'Manual de Especificação de Liga de Titânio T6',
-          code: 'ES-1020-T',
-          revision: 'Rev. 02',
-          page: 'Pág. 18',
-          category: 'Materiais',
-        },
-      ],
-    },
-  ]);
-
-  // Base de Dados Mockada de Perguntas e Respostas com Fontes Detalhadas
-  const mockKnowledgeBase = [
-    {
-      keywords: ['stress', 'asa', 'gripen', 'limite', 'carga', 'pressao'],
-      text: 'Com base nas especificações estruturais e relatórios de aeroestrutura da Akaer, o limite máximo de stress estático para a asa do Gripen NG em manobra supersônica (9g) é de 450 MPa. Para fadiga cíclica contínua, o limite seguro recomendado é de 310 MPa.',
-      sources: [
-        {
-          documentName: 'Stress Test e Cargas Estruturais Asa Esquerda - Gripen NG',
-          code: 'OI-2026-A8',
-          revision: 'Rev. 04',
-          page: 'Pág. 42',
-          category: 'Aeroestrutura',
-        },
-        {
-          documentName: 'Certificado de Análise Estrutural do Trem de Pouso',
-          code: 'CA-4028-E',
-          revision: 'Rev. B',
-          page: 'Pág. 15',
-          category: 'Sistemas Críticos',
-        },
-      ],
-    },
-    {
-      keywords: ['manutenção', 'manutencao', 'turbina', 'ge880', 'ge-880', 'ge', 'motor'],
-      text: 'O plano de manutenção preventiva para as turbinas GE-880 estabelece inspeções boroscópicas completas a cada 250 horas de operação e substituição de selos hidráulicos a cada 1.000 horas de voo.',
-      sources: [
-        {
-          documentName: 'Plano de Manutenção Preventiva Turbinas GE-880',
-          code: 'PM-9011-M',
-          revision: 'Rev. 03',
-          page: 'Pág. 14',
-          category: 'Manutenção',
-        },
-        {
-          documentName: 'Manual de Operação de Aviônicos e Propulsão',
-          code: 'OI-9621-X',
-          revision: 'Rev. 05',
-          page: 'Pág. 88',
-          category: 'Sistemas Críticos',
-        },
-      ],
-    },
-    {
-      keywords: ['despacho', 'malote', 'hangar', 'sjc', 'transporte', 'logística', 'logistica'],
-      text: 'Para expedição de componentes aeroespaciais no Hangar 2 SJC, o protocolo exige empacotamento sob atmosfera inerte (Nitrogênio N2) e selo de conformidade emitido pela Garantia da Qualidade.',
-      sources: [
-        {
-          documentName: 'Instruções de Despacho de Asa - SJC Hangar 2',
-          code: 'DS-8920-L',
-          revision: 'Rev. 01',
-          page: 'Pág. 08',
-          category: 'Logística',
-        },
-        {
-          documentName: 'Diretriz de Segurança do Transporte Aeroespacial',
-          code: 'DS-1002-S',
-          revision: 'Rev. 02',
-          page: 'Pág. 21',
-          category: 'Segurança',
-        },
-      ],
-    },
-    {
-      keywords: ['qualidade', 'conformidade', 'norma', 'iso', 'as9100', 'auditoria'],
-      text: 'A diretriz de conformidade AS9100D exige verificação de rastreabilidade de lote para 100% dos componentes estruturais de classe primária antes do envio para a linha de montagem.',
-      sources: [
-        {
-          documentName: 'Relatório de Auditoria e Conformidade Qualidade',
-          code: 'AC-3099-Q',
-          revision: 'Rev. 02',
-          page: 'Pág. 33',
-          category: 'Qualidade',
-        },
-        {
-          documentName: 'Manual de Processos da Qualidade Aeroespacial',
-          code: 'MQ-0010-A',
-          revision: 'Rev. 04',
-          page: 'Pág. 05',
-          category: 'Qualidade',
-        },
-      ],
-    },
-  ];
-
-  const generateMockAiResponse = (query) => {
-    const qLower = query.toLowerCase();
-    const match = mockKnowledgeBase.find((item) => item.keywords.some((kw) => qLower.includes(kw)));
-
-    if (match) {
-      return match;
-    }
-
-    return {
-      text: `Analisamos sua consulta sobre "${query}". Com base nos documentos e dados técnicos da Akaer, identificamos as seguintes diretrizes e especificações normativas aplicáveis.`,
-      sources: [
-        {
-          documentName: 'Manual Geral de Especificações Técnicas e Tolerância',
-          code: 'OI-9621-X',
-          revision: 'Rev. 03',
-          page: 'Pág. 27',
-          category: 'Aeroestrutura',
-        },
-        {
-          documentName: 'Diretriz Geral de Garantia da Qualidade e Conformidade',
-          code: 'DQ-1002-Q',
-          revision: 'Rev. 02',
-          page: 'Pág. 15',
-          category: 'Qualidade',
-        },
-      ],
-    };
-  };
+  const chatMessages = ref([]);
 
   const scrollToBottom = () => {
     nextTick(() => {
@@ -496,42 +351,57 @@
     isProcessing.value = true;
     scrollToBottom();
 
-    try {
-      // Tentativa opcional de integrar com backend se estiver rodando
-      const response = await fetch('http://localhost:8000/api/ai/query/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: queryText }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        chatMessages.value.push({
-          type: 'ai',
-          text: data.answer || data.text,
-          sources: data.sources || [],
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        });
-        isProcessing.value = false;
-        scrollToBottom();
-        return;
-      }
-    } catch {
-      // Se backend não responder, faz fallback gracioso para mock
-    }
-
-    // Simula tempo de resposta da IA (1.5 segundos) com estado de processando ativo
-    setTimeout(() => {
-      const mockAnswer = generateMockAiResponse(queryText);
+    const pushAiMessage = (text, sources = []) => {
       chatMessages.value.push({
         type: 'ai',
-        text: mockAnswer.text,
-        sources: mockAnswer.sources,
+        text,
+        sources,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       });
       isProcessing.value = false;
       scrollToBottom();
-    }, 1500);
+    };
+
+    try {
+      // Pipeline RAG do backend: busca os trechos no pgvector e responde via Ollama
+      const response = await fetch('http://localhost:8000/api/perguntas/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('akaer_token') || ''}`,
+        },
+        body: JSON.stringify({ pergunta: queryText }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (response.status === 401) {
+        isProcessing.value = false;
+        emit('sessionExpired');
+        return;
+      }
+
+      if (!response.ok) {
+        const detail =
+          response.status === 503
+            ? 'O serviço de IA está indisponível no momento. Tente novamente mais tarde.'
+            : data.detail || 'Não foi possível obter a resposta da IA.';
+        pushAiMessage(detail);
+        return;
+      }
+
+      const sources = (data.fontes || []).map((fonte) => ({
+        documentName: fonte.titulo,
+        code: fonte.documento,
+        revision: fonte.revisao || '—',
+        page: `Pág. ${fonte.pagina}`,
+        similarity: `${Math.round(fonte.similaridade * 100)}%`,
+        category: 'EverySpec',
+        url: fonte.url_pdf,
+      }));
+      pushAiMessage(data.resposta, data.encontrou ? sources : []);
+    } catch {
+      pushAiMessage('Não foi possível conectar ao servidor. Verifique se o backend está rodando.');
+    }
   };
 
   const clearChat = () => {
@@ -801,7 +671,12 @@
                         }}</span>
                         <span v-if="src.code" class="source-code-tag">{{ src.code }}</span>
                       </div>
-                      <h5 class="source-doc-name">{{ src.documentName || src.title }}</h5>
+                      <h5 class="source-doc-name">
+                        <a v-if="src.url" :href="src.url" target="_blank" rel="noopener">{{
+                          src.documentName || src.title
+                        }}</a>
+                        <template v-else>{{ src.documentName || src.title }}</template>
+                      </h5>
                       <div class="source-details-row">
                         <span class="source-meta-item">
                           <strong>Revisão:</strong> {{ src.revision || 'Rev. 01' }}
@@ -810,6 +685,12 @@
                         <span class="source-meta-item">
                           <strong>Página:</strong> {{ src.page || 'Pág. 1' }}
                         </span>
+                        <template v-if="src.similarity">
+                          <span class="source-meta-dot">•</span>
+                          <span class="source-meta-item">
+                            <strong>Similaridade:</strong> {{ src.similarity }}
+                          </span>
+                        </template>
                       </div>
                     </div>
                   </div>
@@ -1544,6 +1425,7 @@
     color: #334155;
     line-height: 1.5;
     margin: 0 0 0.75rem 0;
+    white-space: pre-line;
   }
 
   /* Fontes e Referências (Logo Abaixo da Resposta) */
