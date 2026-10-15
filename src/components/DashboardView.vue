@@ -318,10 +318,67 @@
   };
 
   // Interação Q&A (IA com fontes via pipeline RAG do backend)
+
+  const IDIOMAS_ACEITOS = ['pt-BR', 'en'];
+
+  const idiomaSalvo = localStorage.getItem('ai-language');
+  const selectedLanguage = ref(IDIOMAS_ACEITOS.includes(idiomaSalvo) ? idiomaSalvo : 'pt-BR');
+
+  const aiTexts = {
+    'pt-BR': {
+      english: 'Resposta em inglês',
+      portuguese: 'Resposta em português',
+      language: 'Idioma da resposta:',
+      placeholder: 'Faça uma pergunta sobre os documentos técnicos...',
+      processing: 'Processando...',
+      processingMessage: 'Consultando documentos técnicos...',
+      send: 'Enviar',
+      clearChat: 'Limpar conversa',
+      sources: 'Fontes consultadas',
+      revision: 'Revisão',
+      page: 'Página',
+      defaultPage: '—',
+      defaultCategory: 'Documento Técnico',
+      similarity: 'Similaridade',
+      serviceUnavailable:
+        'O serviço de IA está indisponível no momento. Tente novamente mais tarde.',
+      genericError: 'Não foi possível obter a resposta da IA.',
+      connectionError:
+        'Não foi possível conectar ao servidor. Verifique se o backend está rodando.',
+    },
+    en: {
+      english: 'English response',
+      portuguese: 'Portuguese response',
+      language: 'Response language:',
+      placeholder: 'Ask a question about the technical documents...',
+      processing: 'Processing...',
+      processingMessage: 'Searching technical documents...',
+      send: 'Send',
+      clearChat: 'Clear conversation',
+      sources: 'Sources consulted',
+      revision: 'Revision',
+      page: 'Page',
+      defaultPage: '—',
+      defaultCategory: 'Technical Document',
+      similarity: 'Similarity',
+      serviceUnavailable: 'The AI service is currently unavailable. Please try again later.',
+      genericError: 'Could not get a response from the AI.',
+      connectionError: 'Could not connect to the server. Check that the backend is running.',
+    },
+  };
+
+  const currentAiTexts = computed(() => aiTexts[selectedLanguage.value]);
+
+  const changeLanguage = (language) => {
+    if (!IDIOMAS_ACEITOS.includes(language)) return;
+
+    selectedLanguage.value = language;
+    localStorage.setItem('ai-language', language);
+  };
+
   const aiInputQuery = ref('');
   const isProcessing = ref(false);
   const chatContainerRef = ref(null);
-
   const chatMessages = ref([]);
 
   const scrollToBottom = () => {
@@ -335,12 +392,13 @@
   const handleSendAiMessage = async () => {
     const queryText = aiInputQuery.value.trim();
 
-    // Critério de aceite: Pergunta vazia não é enviada
     if (!queryText || isProcessing.value) return;
 
-    const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const timeString = new Date().toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
 
-    // Adiciona a pergunta do usuário
     chatMessages.value.push({
       type: 'user',
       text: queryText,
@@ -351,13 +409,18 @@
     isProcessing.value = true;
     scrollToBottom();
 
-    const pushAiMessage = (text, sources = []) => {
+    const pushAiMessage = (text, sources = [], language = selectedLanguage.value) => {
       chatMessages.value.push({
         type: 'ai',
         text,
         sources,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        language,
+        timestamp: new Date().toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
       });
+
       isProcessing.value = false;
       scrollToBottom();
     };
@@ -370,7 +433,10 @@
           'Content-Type': 'application/json',
           Authorization: `Bearer ${localStorage.getItem('akaer_token') || ''}`,
         },
-        body: JSON.stringify({ pergunta: queryText }),
+        body: JSON.stringify({
+          pergunta: queryText,
+          idioma: selectedLanguage.value,
+        }),
       });
       const data = await response.json().catch(() => ({}));
 
@@ -383,8 +449,9 @@
       if (!response.ok) {
         const detail =
           response.status === 503
-            ? 'O serviço de IA está indisponível no momento. Tente novamente mais tarde.'
-            : data.detail || 'Não foi possível obter a resposta da IA.';
+            ? currentAiTexts.value.serviceUnavailable
+            : data.detail || currentAiTexts.value.genericError;
+
         pushAiMessage(detail);
         return;
       }
@@ -393,14 +460,15 @@
         documentName: fonte.titulo,
         code: fonte.documento,
         revision: fonte.revisao || '—',
-        page: `Pág. ${fonte.pagina}`,
+        page: fonte.pagina,
         similarity: `${Math.round(fonte.similaridade * 100)}%`,
         category: 'EverySpec',
         url: fonte.url_pdf,
       }));
-      pushAiMessage(data.resposta, data.encontrou ? sources : []);
+
+      pushAiMessage(data.resposta, data.encontrou ? sources : [], data.idioma);
     } catch {
-      pushAiMessage('Não foi possível conectar ao servidor. Verifique se o backend está rodando.');
+      pushAiMessage(currentAiTexts.value.connectionError);
     }
   };
 
@@ -655,21 +723,35 @@
                 <Sparkles :size="16" />
               </div>
               <div class="ai-response-content">
-                <p class="ai-text">{{ msg.text }}</p>
+                <div v-if="msg.language" class="ai-language-tag">
+                  {{ msg.language === 'en' ? currentAiTexts.english : currentAiTexts.portuguese }}
+                </div>
+
+                <p class="ai-text">
+                  {{ msg.text }}
+                </p>
 
                 <!-- Fontes Consultadas (Critério: Nome do Documento, Revisão e Página logo abaixo) -->
                 <div v-if="msg.sources && msg.sources.length" class="sources-container">
                   <div class="sources-title-row">
                     <BookOpen :size="14" class="sources-icon" />
-                    <span>Fontes e Referências ({{ msg.sources.length }})</span>
+
+                    <span>
+                      {{ currentAiTexts.sources }}
+                      ({{ msg.sources.length }})
+                    </span>
                   </div>
+
                   <div class="sources-grid">
                     <div v-for="(src, sIdx) in msg.sources" :key="sIdx" class="source-card">
                       <div class="source-card-header">
-                        <span class="source-category-tag">{{
-                          src.category || 'Documento Técnico'
-                        }}</span>
-                        <span v-if="src.code" class="source-code-tag">{{ src.code }}</span>
+                        <span class="source-category-tag">
+                          {{ src.category || currentAiTexts.defaultCategory }}
+                        </span>
+
+                        <span v-if="src.code" class="source-code-tag">
+                          {{ src.code }}
+                        </span>
                       </div>
                       <h5 class="source-doc-name">
                         <a v-if="src.url" :href="src.url" target="_blank" rel="noopener">{{
@@ -679,23 +761,26 @@
                       </h5>
                       <div class="source-details-row">
                         <span class="source-meta-item">
-                          <strong>Revisão:</strong> {{ src.revision || 'Rev. 01' }}
+                          <strong> {{ currentAiTexts.revision }}: </strong>
+
+                          {{ src.revision || 'Rev. 01' }}
                         </span>
                         <span class="source-meta-dot">•</span>
                         <span class="source-meta-item">
-                          <strong>Página:</strong> {{ src.page || 'Pág. 1' }}
+                          <strong>{{ currentAiTexts.page }}:</strong>
+                          {{ src.page || currentAiTexts.defaultPage }}
                         </span>
                         <template v-if="src.similarity">
                           <span class="source-meta-dot">•</span>
                           <span class="source-meta-item">
-                            <strong>Similaridade:</strong> {{ src.similarity }}
+                            <strong>{{ currentAiTexts.similarity }}:</strong>
+                            {{ src.similarity }}
                           </span>
                         </template>
                       </div>
                     </div>
                   </div>
                 </div>
-
                 <!-- Suporte a documentos simplificados Legados caso existam -->
                 <div v-else-if="msg.documents && msg.documents.length" class="cited-docs-grid">
                   <div v-for="(doc, dIdx) in msg.documents" :key="dIdx" class="cited-doc-card">
@@ -717,7 +802,7 @@
               <div class="ai-response-content">
                 <div class="processing-status-card">
                   <Loader2 :size="18" class="spin-icon" />
-                  <span>Consultando base de conhecimento e gerando resposta com fontes...</span>
+                  <span> {{ currentAiTexts.processingMessage }} </span>
                 </div>
               </div>
             </div>
@@ -729,20 +814,48 @@
           <button
             type="button"
             class="btn-clear"
-            title="Limpar histórico de chat"
+            :title="currentAiTexts.clearChat"
             :disabled="isProcessing"
             @click="clearChat"
           >
             <Trash2 :size="18" />
           </button>
+
+          <div class="ai-language-selector">
+            <span class="ai-language-label">
+              {{ currentAiTexts.language }}
+            </span>
+
+            <div class="ai-language-options">
+              <button
+                type="button"
+                class="ai-language-button"
+                :class="{ selected: selectedLanguage === 'pt-BR' }"
+                @click="changeLanguage('pt-BR')"
+              >
+                Português
+              </button>
+
+              <button
+                type="button"
+                class="ai-language-button"
+                :class="{ selected: selectedLanguage === 'en' }"
+                @click="changeLanguage('en')"
+              >
+                English
+              </button>
+            </div>
+          </div>
+
           <input
             v-model="aiInputQuery"
             type="text"
-            placeholder="Digite sua pergunta técnica (ex: limites de stress, manuais de manutenção)..."
+            :placeholder="currentAiTexts.placeholder"
             class="ai-input"
             :disabled="isProcessing"
             @keyup.enter="handleSendAiMessage"
           />
+
           <button
             type="button"
             class="btn-send-ai"
@@ -750,8 +863,12 @@
             @click="handleSendAiMessage"
           >
             <Loader2 v-if="isProcessing" :size="16" class="spin-icon" />
+
             <Send v-else :size="16" />
-            <span class="btn-send-label">{{ isProcessing ? 'Processando' : 'Enviar' }}</span>
+
+            <span class="btn-send-label">
+              {{ isProcessing ? currentAiTexts.processing : currentAiTexts.send }}
+            </span>
           </button>
         </div>
       </section>
@@ -1607,20 +1724,25 @@
   .ai-input-bar {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 12px;
+    width: 100%;
+    box-sizing: border-box;
     background: #f8fafc;
     border: 1px solid #e2e8f0;
-    padding: 0.5rem 0.75rem;
-    border-radius: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
   }
 
   .btn-clear {
-    background: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    background: transparent;
     border: none;
     color: #94a3b8;
     cursor: pointer;
-    padding: 0.35rem;
-    transition: color 0.2s;
+    padding: 8px;
   }
 
   .btn-clear:hover:not(:disabled) {
@@ -2298,5 +2420,126 @@
     border-top-color: #ffffff;
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
+  }
+
+  /* =========================================================
+   SELETOR DE IDIOMA - AI ASSISTANT
+   ========================================================= */
+
+  .ai-language-selector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .ai-language-label {
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .ai-language-options {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 3px;
+    border: 1px solid #e2e8f0;
+    border-radius: 9px;
+    background: #f1f2f6;
+  }
+
+  .ai-input-bar .ai-language-button {
+    appearance: none;
+    -webkit-appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    outline: none;
+    background: transparent;
+    color: #64748b;
+    padding: 8px 12px;
+    margin: 0;
+    border-radius: 7px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .ai-input-bar .ai-language-button:hover {
+    background: #faf5ff;
+    color: #7e22ce;
+  }
+
+  .ai-input-bar .ai-language-button.selected {
+    border-color: #7e22ce;
+    background: #7e22ce;
+    color: #ffffff;
+    box-shadow: 0 2px 5px rgba(126, 34, 206, 0.2);
+  }
+
+  /* Campo de mensagem */
+
+  .ai-input-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .ai-input {
+    display: block;
+    flex: 1 1 0;
+    min-width: 0;
+    width: 0;
+    box-sizing: border-box;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: #0f172a;
+    padding: 10px 4px;
+    font-family: inherit;
+    font-size: 0.9rem;
+  }
+
+  .ai-input::placeholder {
+    color: #94a3b8;
+    opacity: 1;
+  }
+
+  .ai-input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .btn-clear,
+  .btn-send-ai {
+    flex-shrink: 0;
+  }
+
+  @media (max-width: 760px) {
+    .ai-input-bar {
+      flex-wrap: wrap;
+    }
+
+    .ai-language-selector {
+      order: 2;
+    }
+
+    .ai-input {
+      order: 3;
+      flex: 1 1 100%;
+      width: 100%;
+    }
+
+    .btn-send-ai {
+      order: 4;
+    }
   }
 </style>
