@@ -1,18 +1,14 @@
 <script setup>
   import { ref, computed, nextTick } from 'vue';
-  import logoUrl from '@/assets/logo.png';
   import { createUser, uploadDocument, askQuestion } from '../services/api.js';
+  import SidebarMenu from './dashboard/SidebarMenu.vue';
+  import AnswerArea from './dashboard/AnswerArea.vue';
+  import QuestionArea from './dashboard/QuestionArea.vue';
   import {
-    Home,
     Search,
     FileText,
-    Package,
-    Mail,
-    FolderGit2,
     Sparkles,
     Settings,
-    Trash2,
-    Send,
     Upload,
     Plus,
     ShieldCheck,
@@ -22,10 +18,9 @@
     Tag,
     CheckCircle2,
     AlertCircle,
-    Loader2,
-    BookOpen,
     X,
     FileUp,
+    Send,
   } from 'lucide-vue-next';
 
   const props = defineProps({
@@ -348,13 +343,13 @@
 
   const aiInputQuery = ref('');
   const isProcessing = ref(false);
-  const chatContainerRef = ref(null);
+  const answerAreaRef = ref(null);
   const chatMessages = ref([]);
 
   const scrollToBottom = () => {
     nextTick(() => {
-      if (chatContainerRef.value) {
-        chatContainerRef.value.scrollTop = chatContainerRef.value.scrollHeight;
+      if (answerAreaRef.value) {
+        answerAreaRef.value.scrollToBottom();
       }
     });
   };
@@ -525,80 +520,17 @@
       ];
     }
   });
-
-  const getMenuIcon = (menuTitle) => {
-    switch (menuTitle) {
-      case 'Início':
-        return Home;
-      case 'Pesquisa Avançada':
-        return Search;
-      case 'Documentos':
-        return FileText;
-      case 'Gestão de Usuários':
-        return UserCheck;
-      case 'Importar Arquivos':
-        return Upload;
-      case 'Classificar Categorias':
-        return Tag;
-      case 'Projetos':
-        return FolderGit2;
-      case 'Despachos':
-        return Package;
-      case 'Malotes Digitais':
-        return Mail;
-      case 'AI Command Assistant':
-        return Sparkles;
-      case 'Relatórios de Qualidade':
-        return FileText;
-      case 'Auditoria & Conformidade':
-        return ShieldCheck;
-      case 'Solicitar OI':
-        return Plus;
-      default:
-        return FileText;
-    }
-  };
 </script>
 
 <template>
   <div class="dashboard-wrapper fade-in">
-    <!-- Sidebar Navegação Esquerda -->
-    <aside class="sidebar">
-      <div class="sidebar-brand">
-        <img :src="logoUrl" alt="AkaVision Logo" class="sidebar-logo" />
-        <div class="sidebar-brand-text">
-          <span class="sidebar-title">AkaVision</span>
-          <span class="sidebar-subtitle">AKAER ENGENHARIA S.A.</span>
-        </div>
-      </div>
-
-      <!-- Menu Principal Dinâmico por Perfil -->
-      <nav class="sidebar-menu">
-        <a
-          v-for="item in activeUserMenus"
-          :key="item"
-          href="#"
-          :class="['menu-item', { active: activeMenu === item }]"
-          @click.prevent="
-            item === 'Gestão de Usuários' ? (showUserModal = true) : (activeMenu = item)
-          "
-        >
-          <component :is="getMenuIcon(item)" :size="18" class="menu-icon" />
-          <span>{{ item }}</span>
-        </a>
-      </nav>
-
-      <!-- Card Inferior de Credencial Operacional -->
-      <div class="sidebar-credential-card">
-        <span class="cred-tag"
-          >PERFIL {{ props.currentUser?.role?.toUpperCase() || 'OPERACIONAL' }}</span
-        >
-        <h4 class="cred-level">Nível — {{ props.currentUser?.role || 'Engenharia' }}</h4>
-        <p class="cred-info">
-          Credencial {{ props.currentUser?.matricula || 'AK-90822' }} verificada.
-        </p>
-      </div>
-    </aside>
+    <!-- Sidebar Navegação Esquerda (Componente SidebarMenu) -->
+    <SidebarMenu
+      :current-user="props.currentUser"
+      :active-menu="activeMenu"
+      @select-menu="(item) => (activeMenu = item)"
+      @open-user-modal="showUserModal = true"
+    />
 
     <!-- Área Principal de Trabalho -->
     <main class="main-content">
@@ -657,173 +589,24 @@
           </button>
         </div>
 
-        <!-- Chat Stream Area -->
-        <div ref="chatContainerRef" class="chat-container">
-          <div
-            v-for="(msg, index) in chatMessages"
-            :key="index"
-            :class="['chat-bubble-wrapper', msg.type]"
-          >
-            <!-- Pergunta do Usuário -->
-            <div v-if="msg.type === 'user'" class="user-bubble">
-              <span>{{ msg.text }}</span>
-              <span v-if="msg.timestamp" class="bubble-timestamp">{{ msg.timestamp }}</span>
-            </div>
+        <!-- Chat Stream Area (Componente AnswerArea) -->
+        <AnswerArea
+          ref="answerAreaRef"
+          :messages="chatMessages"
+          :is-processing="isProcessing"
+          :current-ai-texts="currentAiTexts"
+        />
 
-            <!-- Resposta da IA -->
-            <div v-else class="ai-response-box">
-              <div class="ai-icon-circle">
-                <Sparkles :size="16" />
-              </div>
-              <div class="ai-response-content">
-                <div v-if="msg.language" class="ai-language-tag">
-                  {{ msg.language === 'en' ? currentAiTexts.english : currentAiTexts.portuguese }}
-                </div>
-
-                <p class="ai-text">
-                  {{ msg.text }}
-                </p>
-
-                <!-- Fontes Consultadas (Critério: Nome do Documento, Revisão e Página logo abaixo) -->
-                <div v-if="msg.sources && msg.sources.length" class="sources-container">
-                  <div class="sources-title-row">
-                    <BookOpen :size="14" class="sources-icon" />
-
-                    <span>
-                      {{ currentAiTexts.sources }}
-                      ({{ msg.sources.length }})
-                    </span>
-                  </div>
-
-                  <div class="sources-grid">
-                    <div v-for="(src, sIdx) in msg.sources" :key="sIdx" class="source-card">
-                      <div class="source-card-header">
-                        <span class="source-category-tag">
-                          {{ src.category || currentAiTexts.defaultCategory }}
-                        </span>
-
-                        <span v-if="src.code" class="source-code-tag">
-                          {{ src.code }}
-                        </span>
-                      </div>
-                      <h5 class="source-doc-name">
-                        <a v-if="src.url" :href="src.url" target="_blank" rel="noopener">{{
-                          src.documentName || src.title
-                        }}</a>
-                        <template v-else>{{ src.documentName || src.title }}</template>
-                      </h5>
-                      <div class="source-details-row">
-                        <span class="source-meta-item">
-                          <strong> {{ currentAiTexts.revision }}: </strong>
-
-                          {{ src.revision || 'Rev. 01' }}
-                        </span>
-                        <span class="source-meta-dot">•</span>
-                        <span class="source-meta-item">
-                          <strong>{{ currentAiTexts.page }}:</strong>
-                          {{ src.page || currentAiTexts.defaultPage }}
-                        </span>
-                        <template v-if="src.similarity">
-                          <span class="source-meta-dot">•</span>
-                          <span class="source-meta-item">
-                            <strong>{{ currentAiTexts.similarity }}:</strong>
-                            {{ src.similarity }}
-                          </span>
-                        </template>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <!-- Suporte a documentos simplificados Legados caso existam -->
-                <div v-else-if="msg.documents && msg.documents.length" class="cited-docs-grid">
-                  <div v-for="(doc, dIdx) in msg.documents" :key="dIdx" class="cited-doc-card">
-                    <span class="doc-cat-tag">{{ doc.category }}</span>
-                    <h5 class="cited-doc-title">{{ doc.title }}</h5>
-                    <span class="cited-doc-code">{{ doc.code }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Indicador Visual: Tela mostra que está processando enquanto a resposta não chega -->
-          <div v-if="isProcessing" class="chat-bubble-wrapper ai processing-wrapper">
-            <div class="ai-response-box processing-box">
-              <div class="ai-icon-circle pulsing-icon">
-                <Sparkles :size="16" />
-              </div>
-              <div class="ai-response-content">
-                <div class="processing-status-card">
-                  <Loader2 :size="18" class="spin-icon" />
-                  <span> {{ currentAiTexts.processingMessage }} </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Input Bar Inferior -->
-        <div class="ai-input-bar">
-          <button
-            type="button"
-            class="btn-clear"
-            :title="currentAiTexts.clearChat"
-            :disabled="isProcessing"
-            @click="clearChat"
-          >
-            <Trash2 :size="18" />
-          </button>
-
-          <div class="ai-language-selector">
-            <span class="ai-language-label">
-              {{ currentAiTexts.language }}
-            </span>
-
-            <div class="ai-language-options">
-              <button
-                type="button"
-                class="ai-language-button"
-                :class="{ selected: selectedLanguage === 'pt-BR' }"
-                @click="changeLanguage('pt-BR')"
-              >
-                Português
-              </button>
-
-              <button
-                type="button"
-                class="ai-language-button"
-                :class="{ selected: selectedLanguage === 'en' }"
-                @click="changeLanguage('en')"
-              >
-                English
-              </button>
-            </div>
-          </div>
-
-          <input
-            v-model="aiInputQuery"
-            type="text"
-            :placeholder="currentAiTexts.placeholder"
-            class="ai-input"
-            :disabled="isProcessing"
-            @keyup.enter="handleSendAiMessage"
-          />
-
-          <button
-            type="button"
-            class="btn-send-ai"
-            :disabled="!aiInputQuery.trim() || isProcessing"
-            @click="handleSendAiMessage"
-          >
-            <Loader2 v-if="isProcessing" :size="16" class="spin-icon" />
-
-            <Send v-else :size="16" />
-
-            <span class="btn-send-label">
-              {{ isProcessing ? currentAiTexts.processing : currentAiTexts.send }}
-            </span>
-          </button>
-        </div>
+        <!-- Input Bar Inferior (Componente QuestionArea com LanguageSelector integrado) -->
+        <QuestionArea
+          v-model="aiInputQuery"
+          :is-processing="isProcessing"
+          :selected-language="selectedLanguage"
+          :current-ai-texts="currentAiTexts"
+          @update:selected-language="changeLanguage"
+          @send="handleSendAiMessage"
+          @clear="clearChat"
+        />
       </section>
 
       <!-- Ações Rápidas de Operação (Adaptadas por Perfil) -->
@@ -1227,109 +1010,7 @@
     background-color: #f8fafc;
   }
 
-  /* Sidebar */
-  .sidebar {
-    width: 270px;
-    background-color: #0f172a;
-    color: #ffffff;
-    display: flex;
-    flex-direction: column;
-    padding: 1.5rem 1rem;
-    border-right: 1px solid #1e293b;
-  }
-
-  .sidebar-brand {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding-bottom: 1.5rem;
-    border-bottom: 1px solid #1e293b;
-    margin-bottom: 1.5rem;
-  }
-
-  .sidebar-logo {
-    height: 36px;
-    width: auto;
-  }
-
-  .sidebar-brand-text {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .sidebar-title {
-    font-weight: 700;
-    font-size: 1.1rem;
-    letter-spacing: -0.01em;
-  }
-
-  .sidebar-subtitle {
-    font-size: 0.65rem;
-    color: #94a3b8;
-    letter-spacing: 0.08em;
-  }
-
-  .sidebar-menu {
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-    flex: 1;
-  }
-
-  .menu-item {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.75rem 1rem;
-    color: #94a3b8;
-    text-decoration: none;
-    font-size: 0.9rem;
-    font-weight: 500;
-    border-radius: 8px;
-    transition: all 0.2s;
-  }
-
-  .menu-item:hover {
-    background-color: #1e293b;
-    color: #ffffff;
-  }
-
-  .menu-item.active {
-    background-color: #7e22ce;
-    color: #ffffff;
-  }
-
-  .menu-icon {
-    opacity: 0.85;
-  }
-
-  .sidebar-credential-card {
-    background: #1e293b;
-    padding: 1rem;
-    border-radius: 10px;
-    border: 1px solid #334155;
-    margin-top: auto;
-  }
-
-  .cred-tag {
-    font-size: 0.65rem;
-    font-weight: 800;
-    color: #c084fc;
-    letter-spacing: 0.08em;
-    display: block;
-  }
-
-  .cred-level {
-    font-size: 0.85rem;
-    margin: 0.25rem 0;
-    color: #ffffff;
-  }
-
-  .cred-info {
-    font-size: 0.72rem;
-    color: #94a3b8;
-    margin: 0;
-  }
+  /* Top Header */
 
   /* Main Content */
   .main-content {
@@ -1436,313 +1117,6 @@
   .tab-btn.active {
     background-color: #f3e8ff;
     color: #7e22ce;
-  }
-
-  .chat-container {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    max-height: 260px;
-    overflow-y: auto;
-    margin-bottom: 1.25rem;
-    padding-right: 0.5rem;
-  }
-
-  .user-bubble {
-    align-self: flex-end;
-    background: #7e22ce;
-    color: #ffffff;
-    padding: 0.75rem 1.25rem;
-    border-radius: 14px 14px 2px 14px;
-    font-size: 0.9rem;
-    max-width: 80%;
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-  }
-
-  .bubble-timestamp {
-    font-size: 0.68rem;
-    color: rgba(255, 255, 255, 0.75);
-    align-self: flex-end;
-  }
-
-  .ai-response-box {
-    display: flex;
-    gap: 0.85rem;
-    align-self: flex-start;
-    max-width: 85%;
-  }
-
-  .ai-icon-circle {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: #f3e8ff;
-    color: #7e22ce;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-
-  .ai-response-content {
-    flex: 1;
-  }
-
-  .ai-text {
-    font-size: 0.9rem;
-    color: #334155;
-    line-height: 1.5;
-    margin: 0 0 0.75rem 0;
-    white-space: pre-line;
-  }
-
-  /* Fontes e Referências (Logo Abaixo da Resposta) */
-  .sources-container {
-    margin-top: 0.75rem;
-    padding-top: 0.75rem;
-    border-top: 1px dashed #e2e8f0;
-  }
-
-  .sources-title-row {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: #64748b;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    margin-bottom: 0.6rem;
-  }
-
-  .sources-icon {
-    color: #7e22ce;
-  }
-
-  .sources-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 0.75rem;
-  }
-
-  .source-card {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-left: 3px solid #7e22ce;
-    padding: 0.65rem 0.85rem;
-    border-radius: 8px;
-    transition: all 0.2s ease;
-  }
-
-  .source-card:hover {
-    background: #ffffff;
-    border-color: #cbd5e1;
-    border-left-color: #6b21a8;
-    box-shadow: 0 2px 8px rgba(126, 34, 206, 0.08);
-  }
-
-  .source-card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.35rem;
-  }
-
-  .source-category-tag {
-    font-size: 0.65rem;
-    font-weight: 700;
-    color: #7e22ce;
-    background: #f3e8ff;
-    padding: 0.15rem 0.4rem;
-    border-radius: 4px;
-    text-transform: uppercase;
-  }
-
-  .source-code-tag {
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: #64748b;
-  }
-
-  .source-doc-name {
-    font-size: 0.83rem;
-    font-weight: 600;
-    color: #0f172a;
-    margin: 0 0 0.45rem 0;
-    line-height: 1.35;
-  }
-
-  .source-details-row {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.75rem;
-    color: #475569;
-    background: #ffffff;
-    padding: 0.3rem 0.55rem;
-    border-radius: 6px;
-    border: 1px solid #f1f5f9;
-  }
-
-  .source-meta-item strong {
-    color: #1e293b;
-    font-weight: 600;
-  }
-
-  .source-meta-dot {
-    color: #cbd5e1;
-  }
-
-  /* Status de Carregamento / Processamento */
-  .processing-wrapper {
-    opacity: 0.95;
-  }
-
-  .processing-status-card {
-    display: flex;
-    align-items: center;
-    gap: 0.65rem;
-    background: #f3e8ff;
-    color: #7e22ce;
-    padding: 0.65rem 1rem;
-    border-radius: 10px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    border: 1px solid #e9d5ff;
-  }
-
-  .spin-icon {
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    from {
-      transform: rotate(0deg);
-    }
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  .pulsing-icon {
-    animation: pulse 1.5s infinite;
-  }
-
-  @keyframes pulse {
-    0%,
-    100% {
-      transform: scale(1);
-      opacity: 1;
-    }
-    50% {
-      transform: scale(1.1);
-      opacity: 0.85;
-    }
-  }
-
-  .cited-docs-grid {
-    display: flex;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-  }
-
-  .cited-doc-card {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    padding: 0.6rem 0.85rem;
-    border-radius: 8px;
-    font-size: 0.8rem;
-  }
-
-  .doc-cat-tag {
-    font-size: 0.68rem;
-    font-weight: 700;
-    color: #7e22ce;
-    display: block;
-  }
-
-  .cited-doc-title {
-    font-size: 0.82rem;
-    margin: 0.2rem 0;
-    color: #0f172a;
-  }
-
-  .cited-doc-code {
-    font-size: 0.72rem;
-    color: #64748b;
-  }
-
-  .ai-input-bar {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    width: 100%;
-    box-sizing: border-box;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
-    padding: 10px 12px;
-    border-radius: 12px;
-  }
-
-  .btn-clear {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 auto;
-    background: transparent;
-    border: none;
-    color: #94a3b8;
-    cursor: pointer;
-    padding: 8px;
-  }
-
-  .btn-clear:hover:not(:disabled) {
-    color: #ef4444;
-  }
-
-  .btn-clear:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-
-  .ai-input {
-    flex: 1;
-    border: none;
-    background: none;
-    outline: none;
-    font-size: 0.9rem;
-    color: #0f172a;
-  }
-
-  .ai-input:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-
-  .btn-send-ai {
-    background: #7e22ce;
-    color: #ffffff;
-    border: none;
-    padding: 0.5rem 1rem;
-    border-radius: 8px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.85rem;
-    font-weight: 600;
-    transition: all 0.2s;
-  }
-
-  .btn-send-ai:hover:not(:disabled) {
-    background: #6b21a8;
-  }
-
-  .btn-send-ai:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
   }
 
   /* Quick Actions */
@@ -2373,126 +1747,5 @@
     border-top-color: #ffffff;
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
-  }
-
-  /* =========================================================
-   SELETOR DE IDIOMA - AI ASSISTANT
-   ========================================================= */
-
-  .ai-language-selector {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex: 0 0 auto;
-    white-space: nowrap;
-  }
-
-  .ai-language-label {
-    color: #64748b;
-    font-size: 13px;
-    font-weight: 500;
-  }
-
-  .ai-language-options {
-    display: flex;
-    align-items: center;
-    gap: 3px;
-    padding: 3px;
-    border: 1px solid #e2e8f0;
-    border-radius: 9px;
-    background: #f1f2f6;
-  }
-
-  .ai-input-bar .ai-language-button {
-    appearance: none;
-    -webkit-appearance: none;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid transparent;
-    outline: none;
-    background: transparent;
-    color: #64748b;
-    padding: 8px 12px;
-    margin: 0;
-    border-radius: 7px;
-    font-family: inherit;
-    font-size: 12px;
-    font-weight: 600;
-    line-height: 1.2;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-
-  .ai-input-bar .ai-language-button:hover {
-    background: #faf5ff;
-    color: #7e22ce;
-  }
-
-  .ai-input-bar .ai-language-button.selected {
-    border-color: #7e22ce;
-    background: #7e22ce;
-    color: #ffffff;
-    box-shadow: 0 2px 5px rgba(126, 34, 206, 0.2);
-  }
-
-  /* Campo de mensagem */
-
-  .ai-input-bar {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    width: 100%;
-    box-sizing: border-box;
-  }
-
-  .ai-input {
-    display: block;
-    flex: 1 1 0;
-    min-width: 0;
-    width: 0;
-    box-sizing: border-box;
-    border: none;
-    outline: none;
-    background: transparent;
-    color: #0f172a;
-    padding: 10px 4px;
-    font-family: inherit;
-    font-size: 0.9rem;
-  }
-
-  .ai-input::placeholder {
-    color: #94a3b8;
-    opacity: 1;
-  }
-
-  .ai-input:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-
-  .btn-clear,
-  .btn-send-ai {
-    flex-shrink: 0;
-  }
-
-  @media (max-width: 760px) {
-    .ai-input-bar {
-      flex-wrap: wrap;
-    }
-
-    .ai-language-selector {
-      order: 2;
-    }
-
-    .ai-input {
-      order: 3;
-      flex: 1 1 100%;
-      width: 100%;
-    }
-
-    .btn-send-ai {
-      order: 4;
-    }
   }
 </style>
