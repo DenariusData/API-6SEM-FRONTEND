@@ -1,5 +1,5 @@
 <script setup>
-  import { ref } from 'vue';
+  import { ref, onMounted, onUnmounted } from 'vue';
   import LoginView from './components/LoginView.vue';
   import TermsView from './components/TermsView.vue';
   import DashboardView from './components/DashboardView.vue';
@@ -84,6 +84,14 @@
     currentScreen.value = 'login';
   };
 
+  onMounted(() => {
+    window.addEventListener('session-expired', onSessionExpired);
+  });
+
+  onUnmounted(() => {
+    window.removeEventListener('session-expired', onSessionExpired);
+  });
+
   const switchProfile = (roleName) => {
     if (MOCK_PROFILES[roleName]) {
       currentUser.value = MOCK_PROFILES[roleName];
@@ -162,11 +170,7 @@
         @decline="onTermsDeclined"
       />
 
-      <DashboardView
-        v-else-if="currentScreen === 'dashboard'"
-        :current-user="currentUser"
-        @session-expired="onSessionExpired"
-      />
+      <DashboardView v-else-if="currentScreen === 'dashboard'" :current-user="currentUser" />
     </main>
   </div>
 </template>
