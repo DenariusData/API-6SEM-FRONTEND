@@ -170,10 +170,7 @@
         @decline="onTermsDeclined"
       />
 
-      <DashboardView
-        v-else-if="currentScreen === 'dashboard'"
-        :current-user="currentUser"
-      />
+      <DashboardView v-else-if="currentScreen === 'dashboard'" :current-user="currentUser" />
     </main>
   </div>
 </template>
