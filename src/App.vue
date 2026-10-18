@@ -173,7 +173,6 @@
       <DashboardView
         v-else-if="currentScreen === 'dashboard'"
         :current-user="currentUser"
-        @session-expired="onSessionExpired"
       />
     </main>
   </div>

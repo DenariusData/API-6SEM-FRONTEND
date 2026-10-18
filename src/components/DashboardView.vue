@@ -28,8 +28,6 @@
     FileUp,
   } from 'lucide-vue-next';
 
-  const emit = defineEmits(['sessionExpired']);
-
   const props = defineProps({
     currentUser: {
       type: Object,
@@ -413,12 +411,6 @@
 
       pushAiMessage(data?.resposta || '', data?.encontrou ? sources : [], data?.idioma);
     } catch (error) {
-      if (error?.status === 401) {
-        isProcessing.value = false;
-        emit('sessionExpired');
-        return;
-      }
-
       if (error?.status === 503) {
         pushAiMessage(currentAiTexts.value.serviceUnavailable);
         return;
