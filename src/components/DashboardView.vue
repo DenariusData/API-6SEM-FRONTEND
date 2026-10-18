@@ -282,7 +282,8 @@
     } catch (error) {
       console.error('Erro no upload:', error);
 
-      uploadError.value = error?.detail || error?.message || 'Não foi possível enviar o arquivo. Tente novamente.';
+      uploadError.value =
+        error?.detail || error?.message || 'Não foi possível enviar o arquivo. Tente novamente.';
     } finally {
       uploadLoading.value = false;
     }

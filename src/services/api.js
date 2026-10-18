@@ -6,7 +6,10 @@
  * - Tratamento centralizado de erros e redirecionamento de 401 para a tela de login.
  */
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/+$/, '');
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(
+  /\/+$/,
+  ''
+);
 const TOKEN_STORAGE_KEY = 'akaer_token';
 
 /**
@@ -46,13 +49,7 @@ export const notifySessionExpired = () => {
  * @param {object} options - Opções do fetch (method, headers, body, skipAuthRedirect, etc.)
  */
 export async function apiFetch(endpoint, options = {}) {
-  const {
-    method = 'GET',
-    headers = {},
-    body,
-    skipAuthRedirect = false,
-    ...restOptions
-  } = options;
+  const { method = 'GET', headers = {}, body, skipAuthRedirect = false, ...restOptions } = options;
 
   const url = endpoint.startsWith('http')
     ? endpoint
