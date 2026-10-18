@@ -143,13 +143,16 @@ export async function createUser(userData) {
   });
 }
 
-// Documentos (Upload AKA-34)
+// Documentos (Validação e Gestão AKA-94 / AKA-34)
 export async function uploadDocument(formData) {
   return apiFetch('/api/documents/upload/', {
     method: 'POST',
     body: formData,
   });
 }
+
+export { listarPendentes, listarMeus, detalhe, aprovar, devolver, reenviar } from './documentos.js';
+import * as documentosService from './documentos.js';
 
 // Perguntas e Assistente de IA RAG (AKA-96)
 export async function askQuestion(pergunta, idioma) {
@@ -172,4 +175,5 @@ export default {
   createUser,
   uploadDocument,
   askQuestion,
+  ...documentosService,
 };
