@@ -1,6 +1,7 @@
 <script setup>
   import { ref, computed, nextTick } from 'vue';
   import logoUrl from '@/assets/logo.png';
+  import { createUser, uploadDocument, askQuestion } from '../services/api.js';
   import {
     Home,
     Search,
@@ -104,22 +105,12 @@
     };
 
     try {
-      const res = await fetch('http://localhost:8000/api/auth/users/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        demoUsersList.value.push(data.user);
-        userModalSuccess.value = `Usuário ${data.user.name} cadastrado com sucesso!`;
-      } else {
-        demoUsersList.value.push({ ...payload, id: Date.now() });
-        userModalSuccess.value = `Usuário ${payload.name} cadastrado no ambiente de demonstração!`;
-      }
+      const data = await createUser(payload);
+      demoUsersList.value.push(data.user);
+      userModalSuccess.value = `Usuário ${data.user.name} cadastrado com sucesso!`;
     } catch {
       demoUsersList.value.push({ ...payload, id: Date.now() });
-      userModalSuccess.value = `Usuário ${payload.name} cadastrado!`;
+      userModalSuccess.value = `Usuário ${payload.name} cadastrado no ambiente de demonstração!`;
     }
 
     newUserName.value = '';
@@ -270,28 +261,8 @@
       formData.append('category', uploadCategory.value);
       formData.append('description', uploadDescription.value.trim());
 
-      // Envia para o backend Django
-      // Token salvo no login (LoginView) — o endpoint exige Authorization: Bearer <token>
-      const token = localStorage.getItem('akaer_token');
-
-      const response = await fetch('http://localhost:8000/api/documents/upload/', {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: formData,
-      });
-
-      // Lê a resposta do Django (tolera resposta que não é JSON, ex.: erro 500 em HTML)
-      let data = null;
-      try {
-        data = await response.json();
-      } catch {
-        data = null;
-      }
-
-      // Se o Django retornar erro
-      if (!response.ok) {
-        throw new Error(data?.detail || 'Não foi possível enviar o arquivo.');
-      }
+      // Envia para o backend Django via serviço centralizado
+      const data = await uploadDocument(formData);
 
       // SUCESSO
       uploadSuccess.value = data?.message || `Arquivo "${uploadTitle.value}" enviado com sucesso!`;
@@ -311,7 +282,7 @@
     } catch (error) {
       console.error('Erro no upload:', error);
 
-      uploadError.value = error?.message || 'Não foi possível enviar o arquivo. Tente novamente.';
+      uploadError.value = error?.detail || error?.message || 'Não foi possível enviar o arquivo. Tente novamente.';
     } finally {
       uploadLoading.value = false;
     }
@@ -426,37 +397,10 @@
     };
 
     try {
-      // Pipeline RAG do backend: busca os trechos no pgvector e responde via Ollama
-      const response = await fetch('http://localhost:8000/api/perguntas/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('akaer_token') || ''}`,
-        },
-        body: JSON.stringify({
-          pergunta: queryText,
-          idioma: selectedLanguage.value,
-        }),
-      });
-      const data = await response.json().catch(() => ({}));
+      // Pipeline RAG do backend via serviço centralizado (AKA-96)
+      const data = await askQuestion(queryText, selectedLanguage.value);
 
-      if (response.status === 401) {
-        isProcessing.value = false;
-        emit('sessionExpired');
-        return;
-      }
-
-      if (!response.ok) {
-        const detail =
-          response.status === 503
-            ? currentAiTexts.value.serviceUnavailable
-            : data.detail || currentAiTexts.value.genericError;
-
-        pushAiMessage(detail);
-        return;
-      }
-
-      const sources = (data.fontes || []).map((fonte) => ({
+      const sources = (data?.fontes || []).map((fonte) => ({
         documentName: fonte.titulo,
         code: fonte.documento,
         revision: fonte.revisao || '—',
@@ -466,8 +410,24 @@
         url: fonte.url_pdf,
       }));
 
-      pushAiMessage(data.resposta, data.encontrou ? sources : [], data.idioma);
-    } catch {
+      pushAiMessage(data?.resposta || '', data?.encontrou ? sources : [], data?.idioma);
+    } catch (error) {
+      if (error?.status === 401) {
+        isProcessing.value = false;
+        emit('sessionExpired');
+        return;
+      }
+
+      if (error?.status === 503) {
+        pushAiMessage(currentAiTexts.value.serviceUnavailable);
+        return;
+      }
+
+      if (error?.status) {
+        pushAiMessage(error.detail || currentAiTexts.value.genericError);
+        return;
+      }
+
       pushAiMessage(currentAiTexts.value.connectionError);
     }
   };

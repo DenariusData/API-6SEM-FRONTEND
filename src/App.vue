@@ -1,5 +1,5 @@
 <script setup>
-  import { ref } from 'vue';
+  import { ref, onMounted, onUnmounted } from 'vue';
   import LoginView from './components/LoginView.vue';
   import TermsView from './components/TermsView.vue';
   import DashboardView from './components/DashboardView.vue';
@@ -83,6 +83,14 @@
     localStorage.removeItem('akaer_token');
     currentScreen.value = 'login';
   };
+
+  onMounted(() => {
+    window.addEventListener('session-expired', onSessionExpired);
+  });
+
+  onUnmounted(() => {
+    window.removeEventListener('session-expired', onSessionExpired);
+  });
 
   const switchProfile = (roleName) => {
     if (MOCK_PROFILES[roleName]) {
