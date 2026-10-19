@@ -12,6 +12,7 @@
       email: 'engenharia@akaer.com.br',
       name: 'Carlos Eduardo',
       role: 'Engenharia',
+      pode_validar: false,
       matricula: 'AK-90822',
       cargo: 'Engenheiro Aeroespacial Senior',
       allowed_menus: [
@@ -28,6 +29,7 @@
       email: 'qualidade@akaer.com.br',
       name: 'Ana Souza',
       role: 'Qualidade',
+      pode_validar: false,
       matricula: 'AK-77401',
       cargo: 'Inspectora de Qualidade e Conformidade',
       allowed_menus: [
@@ -43,6 +45,7 @@
       email: 'admin@akaer.com.br',
       name: 'Ricardo Mendes',
       role: 'Administrador',
+      pode_validar: true,
       matricula: 'AK-10001',
       cargo: 'Administrador do Sistema',
       allowed_menus: [

@@ -1,9 +1,11 @@
 <script setup>
-  import { ref, computed, nextTick } from 'vue';
+  import { ref, computed, nextTick, onMounted } from 'vue';
   import { createUser, uploadDocument, askQuestion } from '../services/api.js';
+  import { listarMeus } from '../services/documentos.js';
   import SidebarMenu from './dashboard/SidebarMenu.vue';
   import AnswerArea from './dashboard/AnswerArea.vue';
   import QuestionArea from './dashboard/QuestionArea.vue';
+  import DocumentsManager from './dashboard/DocumentsManager.vue';
   import {
     Search,
     FileText,
@@ -260,6 +262,9 @@
       // SUCESSO
       uploadSuccess.value = data?.message || `Arquivo "${uploadTitle.value}" enviado com sucesso!`;
 
+      // Atualiza a lista de documentos recentes
+      carregarDocumentosRecentes();
+
       // Limpa os campos depois do upload
       uploadFile.value = null;
       uploadTitle.value = '';
@@ -425,63 +430,54 @@
     chatMessages.value = [];
   };
 
-  // Lista de Documentos Técnicos Recentes
-  const recentDocuments = ref([
-    {
-      id: 1,
-      category: 'Aeroestrutura',
-      code: 'OI-2026-A8',
-      title: 'Stress Test Asa Esquerda - Gripen NG',
-      time: 'Modificado há 2h',
-      status: 'Aprovado',
-      statusClass: 'status-approved',
-    },
-    {
-      id: 2,
-      category: 'Sistemas Críticos',
-      code: 'DO-4820-F4',
-      title: 'Relatório de Empuxo Estrutural - Protótipo C',
-      time: 'Modificado há 4h',
-      status: 'Em Revisão',
-      statusClass: 'status-revision',
-    },
-    {
-      id: 3,
-      category: 'Logística',
-      code: 'DS-8920-L',
-      title: 'Instruções de Despacho de Asa - SJC Hangar 2',
-      time: 'Modificado ontem',
-      status: 'Aprovado',
-      statusClass: 'status-approved',
-    },
-    {
-      id: 4,
-      category: 'Sistemas Críticos',
-      code: 'OI-9621-X',
-      title: 'Manual de Operação de Aviônicos - Versão Final',
-      time: 'Modificado ontem',
-      status: 'Pendente',
-      statusClass: 'status-pending',
-    },
-    {
-      id: 5,
-      category: 'Aeroestrutura',
-      code: 'CA-4028-E',
-      title: 'Certificado de Análise Estrutural do Trem de Pouso',
-      time: 'Modificado há 3 dias',
-      status: 'Aprovado',
-      statusClass: 'status-approved',
-    },
-    {
-      id: 6,
-      category: 'Manutenção',
-      code: 'PM-9011-M',
-      title: 'Plano de Manutenção Preventiva Turbinas GE-880',
-      time: 'Modificado há 5 dias',
-      status: 'Em Revisão',
-      statusClass: 'status-revision',
-    },
-  ]);
+  // Lista de Documentos Técnicos Recentes (carregados via API sem mocks)
+  const recentDocuments = ref([]);
+  const recentDocsLoading = ref(false);
+  const recentDocsError = ref('');
+
+  const carregarDocumentosRecentes = async () => {
+    recentDocsLoading.value = true;
+    recentDocsError.value = '';
+    try {
+      const resp = await listarMeus({ page: 1 });
+      const docs = resp?.results || resp?.items || (Array.isArray(resp) ? resp : []);
+      if (Array.isArray(docs) && docs.length > 0) {
+        recentDocuments.value = docs.slice(0, 6).map((doc) => {
+          const isAprovado = doc.status_validacao === 'DISPONIVEL';
+          const isDevolvido = doc.status_validacao === 'DEVOLVIDO';
+          return {
+            id: doc.id,
+            category: doc.tipo_documento || doc.categoria || 'Aeroestrutura',
+            code: doc.identificador_codigo || `DOC-${String(doc.id).slice(0, 6)}`,
+            title: doc.titulo,
+            time: doc.criado_em
+              ? `Enviado em ${new Date(doc.criado_em).toLocaleDateString('pt-BR')}`
+              : 'Recente',
+            status: isAprovado ? 'Aprovado' : isDevolvido ? 'Devolvido' : 'Pendente',
+            statusClass: isAprovado
+              ? 'status-approved'
+              : isDevolvido
+                ? 'status-revision'
+                : 'status-pending',
+          };
+        });
+      } else {
+        recentDocuments.value = [];
+      }
+    } catch (err) {
+      recentDocuments.value = [];
+      recentDocsError.value =
+        err?.detail ||
+        err?.message ||
+        'Não foi possível carregar os documentos recentes do servidor.';
+    } finally {
+      recentDocsLoading.value = false;
+    }
+  };
+
+  onMounted(() => {
+    carregarDocumentosRecentes();
+  });
 
   // Menus padrão para fallback por perfil caso não venha no objeto
   const activeUserMenus = computed(() => {
@@ -557,159 +553,188 @@
         </div>
       </header>
 
-      <!-- Seção AI Command Assistant (Disponível para Engenharia e Administrador) -->
-      <section v-if="activeUserMenus.includes('AI Command Assistant')" class="ai-assistant-card">
-        <!-- Abas da IA -->
-        <div class="ai-tabs">
-          <button
-            type="button"
-            :class="['tab-btn', { active: activeTab === 'AI Command Assistant' }]"
-            @click="activeTab = 'AI Command Assistant'"
+      <!-- Visão Central de Gestão e Validação de Documentos (AKA-94) -->
+      <DocumentsManager
+        v-if="activeMenu === 'Documentos'"
+        :current-user="props.currentUser"
+        @open-upload-modal="openUploadModal"
+      />
+
+      <template v-else>
+        <!-- Seção AI Command Assistant (Disponível para Engenharia e Administrador) -->
+        <section v-if="activeUserMenus.includes('AI Command Assistant')" class="ai-assistant-card">
+          <!-- Abas da IA -->
+          <div class="ai-tabs">
+            <button
+              type="button"
+              :class="['tab-btn', { active: activeTab === 'AI Command Assistant' }]"
+              @click="activeTab = 'AI Command Assistant'"
+            >
+              <Sparkles :size="16" />
+              <span>AI Command Assistant</span>
+            </button>
+
+            <button
+              type="button"
+              :class="['tab-btn', { active: activeTab === 'Smart Search' }]"
+              @click="activeTab = 'Smart Search'"
+            >
+              <Search :size="16" />
+              <span>Smart Search</span>
+            </button>
+
+            <button
+              type="button"
+              :class="['tab-btn', { active: activeTab === 'Prompt Console' }]"
+              @click="activeTab = 'Prompt Console'"
+            >
+              <Settings :size="16" />
+              <span>Prompt Console</span>
+            </button>
+          </div>
+
+          <!-- Chat Stream Area (Componente AnswerArea) -->
+          <AnswerArea
+            ref="answerAreaRef"
+            :messages="chatMessages"
+            :is-processing="isProcessing"
+            :current-ai-texts="currentAiTexts"
+          />
+
+          <!-- Input Bar Inferior (Componente QuestionArea com LanguageSelector integrado) -->
+          <QuestionArea
+            v-model="aiInputQuery"
+            :is-processing="isProcessing"
+            :selected-language="selectedLanguage"
+            :current-ai-texts="currentAiTexts"
+            @update:selected-language="changeLanguage"
+            @send="handleSendAiMessage"
+            @clear="clearChat"
+          />
+        </section>
+
+        <!-- Ações Rápidas de Operação (Adaptadas por Perfil) -->
+        <section class="quick-actions-section">
+          <h3 class="section-label">
+            AÇÕES RÁPIDAS DE OPERAÇÃO — {{ props.currentUser?.role?.toUpperCase() || 'ENGENHARIA' }}
+          </h3>
+
+          <!-- Grid Administrador -->
+          <div v-if="props.currentUser?.role === 'Administrador'" class="actions-grid">
+            <button class="action-card primary-action" @click="showUserModal = true">
+              <UserPlus :size="18" />
+              <span>Gestão de Usuários</span>
+            </button>
+
+            <button class="action-card" @click="openUploadModal">
+              <Upload :size="18" />
+              <span>Importar Arquivos</span>
+            </button>
+
+            <button class="action-card">
+              <Tag :size="18" />
+              <span>Classificar Categorias</span>
+            </button>
+
+            <button class="action-card">
+              <ShieldCheck :size="18" />
+              <span>Auditar Logs do Sistema</span>
+            </button>
+          </div>
+
+          <!-- Grid Qualidade -->
+          <div v-else-if="props.currentUser?.role === 'Qualidade'" class="actions-grid">
+            <button class="action-card primary-action">
+              <ShieldCheck :size="18" />
+              <span>Auditoria & Conformidade</span>
+            </button>
+
+            <button class="action-card">
+              <FileText :size="18" />
+              <span>Emitir Relatório de Qualidade</span>
+            </button>
+
+            <button class="action-card">
+              <Send :size="18" />
+              <span>Solicitar Revisão Técnica</span>
+            </button>
+
+            <button class="action-card">
+              <Search :size="18" />
+              <span>Pesquisar Não-Conformidades</span>
+            </button>
+          </div>
+
+          <!-- Grid Engenharia / Padrão -->
+          <div v-else class="actions-grid">
+            <button class="action-card primary-action" @click="openUploadModal">
+              <Upload :size="18" />
+              <span>Subir Novo Arquivo</span>
+            </button>
+
+            <button class="action-card">
+              <Send :size="18" />
+              <span>Novo Malote de Envio</span>
+            </button>
+
+            <button class="action-card">
+              <Plus :size="18" />
+              <span>Solicitar OI de Carga</span>
+            </button>
+
+            <button class="action-card">
+              <Sparkles :size="18" />
+              <span>Consultar AI Assistant</span>
+            </button>
+          </div>
+        </section>
+
+        <!-- Documentos Técnicos Recentes -->
+        <section class="recent-docs-section">
+          <div class="section-header-row">
+            <h3 class="section-title">Documentos Técnicos Recentes</h3>
+            <a href="#" class="link-see-all" @click.prevent="activeMenu = 'Documentos'">
+              <span>Ver todos os arquivos</span>
+              <ArrowRight :size="16" />
+            </a>
+          </div>
+
+          <div v-if="recentDocsLoading" class="recent-docs-state">
+            <span>Carregando documentos recentes...</span>
+          </div>
+
+          <div v-else-if="recentDocsError" class="recent-docs-state error">
+            <span>{{ recentDocsError }}</span>
+          </div>
+
+          <div
+            v-else-if="!recentDocuments || recentDocuments.length === 0"
+            class="recent-docs-state"
           >
-            <Sparkles :size="16" />
-            <span>AI Command Assistant</span>
-          </button>
+            <span>Nenhum documento recente encontrado.</span>
+          </div>
 
-          <button
-            type="button"
-            :class="['tab-btn', { active: activeTab === 'Smart Search' }]"
-            @click="activeTab = 'Smart Search'"
-          >
-            <Search :size="16" />
-            <span>Smart Search</span>
-          </button>
+          <div v-else class="documents-grid">
+            <div
+              v-for="doc in recentDocuments"
+              :key="doc.id"
+              class="document-card"
+              @click="activeMenu = 'Documentos'"
+            >
+              <div class="doc-header">
+                <span class="doc-category-badge">{{ doc.category }}</span>
+                <span :class="['doc-status-badge', doc.statusClass]">{{ doc.status }}</span>
+              </div>
 
-          <button
-            type="button"
-            :class="['tab-btn', { active: activeTab === 'Prompt Console' }]"
-            @click="activeTab = 'Prompt Console'"
-          >
-            <Settings :size="16" />
-            <span>Prompt Console</span>
-          </button>
-        </div>
-
-        <!-- Chat Stream Area (Componente AnswerArea) -->
-        <AnswerArea
-          ref="answerAreaRef"
-          :messages="chatMessages"
-          :is-processing="isProcessing"
-          :current-ai-texts="currentAiTexts"
-        />
-
-        <!-- Input Bar Inferior (Componente QuestionArea com LanguageSelector integrado) -->
-        <QuestionArea
-          v-model="aiInputQuery"
-          :is-processing="isProcessing"
-          :selected-language="selectedLanguage"
-          :current-ai-texts="currentAiTexts"
-          @update:selected-language="changeLanguage"
-          @send="handleSendAiMessage"
-          @clear="clearChat"
-        />
-      </section>
-
-      <!-- Ações Rápidas de Operação (Adaptadas por Perfil) -->
-      <section class="quick-actions-section">
-        <h3 class="section-label">
-          AÇÕES RÁPIDAS DE OPERAÇÃO — {{ props.currentUser?.role?.toUpperCase() || 'ENGENHARIA' }}
-        </h3>
-
-        <!-- Grid Administrador -->
-        <div v-if="props.currentUser?.role === 'Administrador'" class="actions-grid">
-          <button class="action-card primary-action" @click="showUserModal = true">
-            <UserPlus :size="18" />
-            <span>Gestão de Usuários</span>
-          </button>
-
-          <button class="action-card" @click="openUploadModal">
-            <Upload :size="18" />
-            <span>Importar Arquivos</span>
-          </button>
-
-          <button class="action-card">
-            <Tag :size="18" />
-            <span>Classificar Categorias</span>
-          </button>
-
-          <button class="action-card">
-            <ShieldCheck :size="18" />
-            <span>Auditar Logs do Sistema</span>
-          </button>
-        </div>
-
-        <!-- Grid Qualidade -->
-        <div v-else-if="props.currentUser?.role === 'Qualidade'" class="actions-grid">
-          <button class="action-card primary-action">
-            <ShieldCheck :size="18" />
-            <span>Auditoria & Conformidade</span>
-          </button>
-
-          <button class="action-card">
-            <FileText :size="18" />
-            <span>Emitir Relatório de Qualidade</span>
-          </button>
-
-          <button class="action-card">
-            <Send :size="18" />
-            <span>Solicitar Revisão Técnica</span>
-          </button>
-
-          <button class="action-card">
-            <Search :size="18" />
-            <span>Pesquisar Não-Conformidades</span>
-          </button>
-        </div>
-
-        <!-- Grid Engenharia / Padrão -->
-        <div v-else class="actions-grid">
-          <button class="action-card primary-action" @click="openUploadModal">
-            <Upload :size="18" />
-            <span>Subir Novo Arquivo</span>
-          </button>
-
-          <button class="action-card">
-            <Send :size="18" />
-            <span>Novo Malote de Envio</span>
-          </button>
-
-          <button class="action-card">
-            <Plus :size="18" />
-            <span>Solicitar OI de Carga</span>
-          </button>
-
-          <button class="action-card">
-            <Sparkles :size="18" />
-            <span>Consultar AI Assistant</span>
-          </button>
-        </div>
-      </section>
-
-      <!-- Documentos Técnicos Recentes -->
-      <section class="recent-docs-section">
-        <div class="section-header-row">
-          <h3 class="section-title">Documentos Técnicos Recentes</h3>
-          <a href="#" class="link-see-all" @click.prevent>
-            <span>Ver todos os arquivos</span>
-            <ArrowRight :size="16" />
-          </a>
-        </div>
-
-        <div class="documents-grid">
-          <div v-for="doc in recentDocuments" :key="doc.id" class="document-card">
-            <div class="doc-header">
-              <span class="doc-category-badge">{{ doc.category }}</span>
-              <span :class="['doc-status-badge', doc.statusClass]">{{ doc.status }}</span>
-            </div>
-
-            <h4 class="doc-title">{{ doc.title }}</h4>
-            <div class="doc-footer">
-              <span class="doc-code">{{ doc.code }}</span>
-              <span class="doc-time">{{ doc.time }}</span>
+              <h4 class="doc-title">{{ doc.title }}</h4>
+              <div class="doc-footer">
+                <span class="doc-code">{{ doc.code }}</span>
+                <span class="doc-time">{{ doc.time }}</span>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </template>
 
       <!-- =====================================================
            MODAL DE UPLOAD - AKA-34
@@ -1197,6 +1222,22 @@
     color: #7e22ce;
     font-weight: 600;
     text-decoration: none;
+  }
+
+  .recent-docs-state {
+    padding: 2.5rem 1rem;
+    text-align: center;
+    background: #ffffff;
+    border: 1px dashed #cbd5e1;
+    border-radius: 12px;
+    color: #64748b;
+    font-size: 0.9rem;
+  }
+
+  .recent-docs-state.error {
+    border-color: #fecaca;
+    background: #fef2f2;
+    color: #991b1b;
   }
 
   .documents-grid {
