@@ -348,7 +348,9 @@
               </td>
               <td>
                 <div class="doc-category-info">
-                  <span class="category-name">{{ doc.tipo_documento || doc.categoria || 'Geral' }}</span>
+                  <span class="category-name">{{
+                    doc.tipo_documento || doc.categoria || 'Geral'
+                  }}</span>
                   <span class="area-name">{{ doc.autor || doc.area || '—' }}</span>
                 </div>
               </td>
@@ -475,12 +477,19 @@
 
               <div class="detail-field">
                 <label>Tipo / Categoria:</label>
-                <span>{{ currentDetail.tipo_documento || currentDetail.categoria || currentDetail.subcategoria || 'Geral' }}</span>
+                <span>{{
+                  currentDetail.tipo_documento ||
+                  currentDetail.categoria ||
+                  currentDetail.subcategoria ||
+                  'Geral'
+                }}</span>
               </div>
 
               <div class="detail-field">
                 <label>Autor / Responsável:</label>
-                <span>{{ currentDetail.autor || currentDetail.responsavel || currentDetail.area || '—' }}</span>
+                <span>{{
+                  currentDetail.autor || currentDetail.responsavel || currentDetail.area || '—'
+                }}</span>
               </div>
             </div>
 
@@ -526,7 +535,9 @@
 
             <!-- Ações no rodapé do modal -->
             <div class="modal-footer-actions">
-              <template v-if="podeValidar && currentDetail.status_validacao === 'AGUARDANDO_VALIDACAO'">
+              <template
+                v-if="podeValidar && currentDetail.status_validacao === 'AGUARDANDO_VALIDACAO'"
+              >
                 <button
                   type="button"
                   class="btn-modal-action btn-approve"

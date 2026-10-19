@@ -707,7 +707,10 @@
             <span>{{ recentDocsError }}</span>
           </div>
 
-          <div v-else-if="!recentDocuments || recentDocuments.length === 0" class="recent-docs-state">
+          <div
+            v-else-if="!recentDocuments || recentDocuments.length === 0"
+            class="recent-docs-state"
+          >
             <span>Nenhum documento recente encontrado.</span>
           </div>
 
