@@ -33,12 +33,17 @@
 
   const emit = defineEmits(['openUploadModal']);
 
-  const isAdmin = computed(
-    () => props.currentUser?.role === 'Administrador' || props.currentUser?.role === 'Qualidade'
+  // AKA-50 / AKA-94: Apenas quem tem pode_validar (exclusivo Administrador no backend)
+  // pode acessar a fila de validação e aprovar/devolver documentos.
+  const podeValidar = computed(
+    () =>
+      props.currentUser?.pode_validar === true ||
+      (!('pode_validar' in (props.currentUser || {})) &&
+        props.currentUser?.role === 'Administrador')
   );
 
   // Abas: 'meus' (Meus Documentos) | 'pendentes' (Fila de Validação)
-  const activeTab = ref(isAdmin.value ? 'pendentes' : 'meus');
+  const activeTab = ref(podeValidar.value ? 'pendentes' : 'meus');
   const statusFilter = ref('');
   const loading = ref(false);
   const feedbackMessage = ref('');
@@ -59,63 +64,6 @@
   const processandoAcao = ref(false);
   const documentoParaAcao = ref(null);
 
-  // Dados mock para fallback de desenvolvimento caso a API não esteja com dados carregados
-  const mockPendentes = [
-    {
-      id: 'd1a2b3c4-0001-4000-8000-000000000001',
-      identificador_codigo: 'OI-9621-X',
-      titulo: 'Manual de Operação de Aviônicos - Versão Final',
-      categoria: 'Sistemas Críticos',
-      area: 'Engenharia de Sistemas',
-      nivel_sigilo: 'INTERNO',
-      nivel_sigilo_sugerido: 'INTERNO',
-      status_validacao: 'AGUARDANDO_VALIDACAO',
-      criado_em: new Date(Date.now() - 3600000 * 5).toISOString(),
-      responsavel_nome: 'Carlos Eduardo',
-    },
-    {
-      id: 'd1a2b3c4-0002-4000-8000-000000000002',
-      identificador_codigo: 'DO-4820-F4',
-      titulo: 'Relatório de Empuxo Estrutural - Protótipo C',
-      categoria: 'Aeroestrutura',
-      area: 'Cálculo Estrutural',
-      nivel_sigilo: 'CONFIDENCIAL',
-      nivel_sigilo_sugerido: 'CONFIDENCIAL',
-      status_validacao: 'AGUARDANDO_VALIDACAO',
-      criado_em: new Date(Date.now() - 3600000 * 12).toISOString(),
-      responsavel_nome: 'Mariana Lima',
-    },
-  ];
-
-  const mockMeus = [
-    {
-      id: 'm1a2b3c4-0001-4000-8000-000000000001',
-      identificador_codigo: 'OI-2026-A8',
-      titulo: 'Stress Test Asa Esquerda - Gripen NG',
-      categoria: 'Aeroestrutura',
-      area: 'Engenharia Aeroespacial',
-      nivel_sigilo: 'RESTRITO',
-      nivel_sigilo_sugerido: 'RESTRITO',
-      status_validacao: 'DISPONIVEL',
-      criado_em: new Date(Date.now() - 3600000 * 24).toISOString(),
-      responsavel_nome: 'Você',
-    },
-    {
-      id: 'm1a2b3c4-0002-4000-8000-000000000002',
-      identificador_codigo: 'CA-4028-E',
-      titulo: 'Certificado de Análise Estrutural do Trem de Pouso',
-      categoria: 'Aeroestrutura',
-      area: 'Engenharia Aeroespacial',
-      nivel_sigilo: 'INTERNO',
-      nivel_sigilo_sugerido: 'INTERNO',
-      status_validacao: 'DEVOLVIDO',
-      comentario_devolucao:
-        'Necessário incluir o laudo da ensaio de fadiga do componente dianteiro.',
-      criado_em: new Date(Date.now() - 3600000 * 48).toISOString(),
-      responsavel_nome: 'Você',
-    },
-  ];
-
   const carregarDocumentos = async () => {
     loading.value = true;
     feedbackMessage.value = '';
@@ -123,30 +71,24 @@
     try {
       if (activeTab.value === 'pendentes') {
         const data = await listarPendentes({ page: 1 });
-        if (data && Array.isArray(data.items)) {
-          items.value = data.items;
-        } else if (Array.isArray(data)) {
-          items.value = data;
-        } else {
-          items.value = mockPendentes;
-        }
+        const docs = data?.results ?? (Array.isArray(data) ? data : []);
+        items.value = docs;
       } else {
         const params = { page: 1 };
         if (statusFilter.value) {
           params.status = statusFilter.value;
         }
         const data = await listarMeus(params);
-        if (data && Array.isArray(data.items)) {
-          items.value = data.items;
-        } else if (Array.isArray(data)) {
-          items.value = data;
-        } else {
-          items.value = mockMeus;
-        }
+        const docs = data?.results ?? (Array.isArray(data) ? data : []);
+        items.value = docs;
       }
-    } catch {
-      // Fallback gracioso com dados de demonstração caso a API não retorne dados no momento
-      items.value = activeTab.value === 'pendentes' ? mockPendentes : mockMeus;
+    } catch (err) {
+      items.value = [];
+      feedbackType.value = 'error';
+      feedbackMessage.value =
+        err?.detail ||
+        err?.message ||
+        'Não foi possível conectar ao servidor. Verifique se o backend está rodando.';
     } finally {
       loading.value = false;
     }
@@ -273,6 +215,12 @@
     }
   };
 
+  watch(podeValidar, (canValidate) => {
+    if (!canValidate && activeTab.value === 'pendentes') {
+      activeTab.value = 'meus';
+    }
+  });
+
   watch([activeTab, statusFilter], () => {
     carregarDocumentos();
   });
@@ -329,7 +277,7 @@
     <div class="manager-tabs-bar">
       <div class="tabs-group">
         <button
-          v-if="isAdmin"
+          v-if="podeValidar"
           type="button"
           :class="['manager-tab-btn', { active: activeTab === 'pendentes' }]"
           @click="activeTab = 'pendentes'"
@@ -400,8 +348,8 @@
               </td>
               <td>
                 <div class="doc-category-info">
-                  <span class="category-name">{{ doc.categoria || 'Geral' }}</span>
-                  <span class="area-name">{{ doc.area || 'Engenharia' }}</span>
+                  <span class="category-name">{{ doc.tipo_documento || doc.categoria || 'Geral' }}</span>
+                  <span class="area-name">{{ doc.autor || doc.area || '—' }}</span>
                 </div>
               </td>
               <td>
@@ -431,8 +379,8 @@
                     <span>Detalhes</span>
                   </button>
 
-                  <!-- Ações rápidas de validação para Administrador -->
-                  <template v-if="isAdmin && doc.status_validacao === 'AGUARDANDO_VALIDACAO'">
+                  <!-- Ações rápidas de validação exclusivas para quem pode validar (Administrador) -->
+                  <template v-if="podeValidar && doc.status_validacao === 'AGUARDANDO_VALIDACAO'">
                     <button
                       type="button"
                       class="action-icon-btn btn-approve"
@@ -456,9 +404,9 @@
                     </button>
                   </template>
 
-                  <!-- Ação de reenvio para documentos devolvidos -->
+                  <!-- Ação de reenvio ocultada temporariamente (endpoint /reenviar/ em andamento na AKA-47) -->
                   <button
-                    v-if="doc.status_validacao === 'DEVOLVIDO'"
+                    v-if="false && doc.status_validacao === 'DEVOLVIDO'"
                     type="button"
                     class="action-icon-btn btn-resend"
                     title="Reenviar para validação"
@@ -526,13 +474,13 @@
               </div>
 
               <div class="detail-field">
-                <label>Categoria:</label>
-                <span>{{ currentDetail.categoria || 'Aeroestrutura' }}</span>
+                <label>Tipo / Categoria:</label>
+                <span>{{ currentDetail.tipo_documento || currentDetail.categoria || currentDetail.subcategoria || 'Geral' }}</span>
               </div>
 
               <div class="detail-field">
-                <label>Área Responsável:</label>
-                <span>{{ currentDetail.area || 'Engenharia' }}</span>
+                <label>Autor / Responsável:</label>
+                <span>{{ currentDetail.autor || currentDetail.responsavel || currentDetail.area || '—' }}</span>
               </div>
             </div>
 
@@ -578,7 +526,7 @@
 
             <!-- Ações no rodapé do modal -->
             <div class="modal-footer-actions">
-              <template v-if="isAdmin && currentDetail.status_validacao === 'AGUARDANDO_VALIDACAO'">
+              <template v-if="podeValidar && currentDetail.status_validacao === 'AGUARDANDO_VALIDACAO'">
                 <button
                   type="button"
                   class="btn-modal-action btn-approve"
@@ -600,8 +548,9 @@
                 </button>
               </template>
 
+              <!-- Ação de reenvio ocultada temporariamente (endpoint /reenviar/ em andamento na AKA-47) -->
               <button
-                v-if="currentDetail.status_validacao === 'DEVOLVIDO'"
+                v-if="false && currentDetail.status_validacao === 'DEVOLVIDO'"
                 type="button"
                 class="btn-modal-action btn-resend"
                 :disabled="processandoAcao"

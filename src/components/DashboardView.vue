@@ -430,74 +430,24 @@
     chatMessages.value = [];
   };
 
-  // Lista de Documentos Técnicos Recentes
-  const recentDocuments = ref([
-    {
-      id: 1,
-      category: 'Aeroestrutura',
-      code: 'OI-2026-A8',
-      title: 'Stress Test Asa Esquerda - Gripen NG',
-      time: 'Modificado há 2h',
-      status: 'Aprovado',
-      statusClass: 'status-approved',
-    },
-    {
-      id: 2,
-      category: 'Sistemas Críticos',
-      code: 'DO-4820-F4',
-      title: 'Relatório de Empuxo Estrutural - Protótipo C',
-      time: 'Modificado há 4h',
-      status: 'Em Revisão',
-      statusClass: 'status-revision',
-    },
-    {
-      id: 3,
-      category: 'Logística',
-      code: 'DS-8920-L',
-      title: 'Instruções de Despacho de Asa - SJC Hangar 2',
-      time: 'Modificado ontem',
-      status: 'Aprovado',
-      statusClass: 'status-approved',
-    },
-    {
-      id: 4,
-      category: 'Sistemas Críticos',
-      code: 'OI-9621-X',
-      title: 'Manual de Operação de Aviônicos - Versão Final',
-      time: 'Modificado ontem',
-      status: 'Pendente',
-      statusClass: 'status-pending',
-    },
-    {
-      id: 5,
-      category: 'Aeroestrutura',
-      code: 'CA-4028-E',
-      title: 'Certificado de Análise Estrutural do Trem de Pouso',
-      time: 'Modificado há 3 dias',
-      status: 'Aprovado',
-      statusClass: 'status-approved',
-    },
-    {
-      id: 6,
-      category: 'Manutenção',
-      code: 'PM-9011-M',
-      title: 'Plano de Manutenção Preventiva Turbinas GE-880',
-      time: 'Modificado há 5 dias',
-      status: 'Em Revisão',
-      statusClass: 'status-revision',
-    },
-  ]);
+  // Lista de Documentos Técnicos Recentes (carregados via API sem mocks)
+  const recentDocuments = ref([]);
+  const recentDocsLoading = ref(false);
+  const recentDocsError = ref('');
 
   const carregarDocumentosRecentes = async () => {
+    recentDocsLoading.value = true;
+    recentDocsError.value = '';
     try {
       const resp = await listarMeus({ page: 1 });
-      if (resp?.items && Array.isArray(resp.items) && resp.items.length > 0) {
-        recentDocuments.value = resp.items.slice(0, 6).map((doc) => {
+      const docs = resp?.results || resp?.items || (Array.isArray(resp) ? resp : []);
+      if (Array.isArray(docs) && docs.length > 0) {
+        recentDocuments.value = docs.slice(0, 6).map((doc) => {
           const isAprovado = doc.status_validacao === 'DISPONIVEL';
           const isDevolvido = doc.status_validacao === 'DEVOLVIDO';
           return {
             id: doc.id,
-            category: doc.categoria || 'Aeroestrutura',
+            category: doc.tipo_documento || doc.categoria || 'Aeroestrutura',
             code: doc.identificador_codigo || `DOC-${String(doc.id).slice(0, 6)}`,
             title: doc.titulo,
             time: doc.criado_em
@@ -511,9 +461,17 @@
                 : 'status-pending',
           };
         });
+      } else {
+        recentDocuments.value = [];
       }
-    } catch {
-      // Backend indisponível ou sem registros; mantém os registros mock
+    } catch (err) {
+      recentDocuments.value = [];
+      recentDocsError.value =
+        err?.detail ||
+        err?.message ||
+        'Não foi possível carregar os documentos recentes do servidor.';
+    } finally {
+      recentDocsLoading.value = false;
     }
   };
 
@@ -741,7 +699,19 @@
             </a>
           </div>
 
-          <div class="documents-grid">
+          <div v-if="recentDocsLoading" class="recent-docs-state">
+            <span>Carregando documentos recentes...</span>
+          </div>
+
+          <div v-else-if="recentDocsError" class="recent-docs-state error">
+            <span>{{ recentDocsError }}</span>
+          </div>
+
+          <div v-else-if="!recentDocuments || recentDocuments.length === 0" class="recent-docs-state">
+            <span>Nenhum documento recente encontrado.</span>
+          </div>
+
+          <div v-else class="documents-grid">
             <div
               v-for="doc in recentDocuments"
               :key="doc.id"
@@ -1249,6 +1219,22 @@
     color: #7e22ce;
     font-weight: 600;
     text-decoration: none;
+  }
+
+  .recent-docs-state {
+    padding: 2.5rem 1rem;
+    text-align: center;
+    background: #ffffff;
+    border: 1px dashed #cbd5e1;
+    border-radius: 12px;
+    color: #64748b;
+    font-size: 0.9rem;
+  }
+
+  .recent-docs-state.error {
+    border-color: #fecaca;
+    background: #fef2f2;
+    color: #991b1b;
   }
 
   .documents-grid {

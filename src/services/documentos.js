@@ -46,10 +46,10 @@ function toQueryString(params) {
 
 /**
  * Lista os documentos na fila de validação (status AGUARDANDO_VALIDACAO).
- * Exclusivo para usuários com permissão de validação (ex: Administrador).
+ * Exclusivo para usuários com permissão de validação (Administrador).
  *
  * @param {object|string|number} [params] - Parâmetros como { page: 1 }
- * @returns {Promise<object>} Lista paginada contendo items, total, page, etc.
+ * @returns {Promise<object>} Lista paginada contendo { count, page, page_size, total_pages, results }
  */
 export async function listarPendentes(params) {
   const qs = toQueryString(params);
@@ -60,7 +60,7 @@ export async function listarPendentes(params) {
  * Lista os documentos enviados pelo próprio usuário autenticado ("Meus Documentos").
  *
  * @param {object|string} [params] - Parâmetros como { status: 'DEVOLVIDO', page: 1 }
- * @returns {Promise<object>} Lista paginada de documentos do usuário
+ * @returns {Promise<object>} Lista paginada de documentos do usuário ({ count, page, page_size, total_pages, results })
  */
 export async function listarMeus(params) {
   const qs = toQueryString(params);
