@@ -52,6 +52,7 @@
         'Início',
         'Pesquisa Avançada',
         'Documentos',
+        'Validação',
         'Projetos',
         'Despachos',
         'Malotes Digitais',

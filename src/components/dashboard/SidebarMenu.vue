@@ -29,19 +29,32 @@
       type: String,
       default: 'Início',
     },
+    pendingCount: {
+      type: Number,
+      default: 0,
+    },
   });
 
   const emit = defineEmits(['selectMenu', 'openUserModal']);
 
+  const podeValidar = computed(() => {
+    return (
+      props.currentUser?.pode_validar === true ||
+      (!('pode_validar' in (props.currentUser || {})) &&
+        props.currentUser?.role === 'Administrador')
+    );
+  });
+
   const activeUserMenus = computed(() => {
+    let list;
     if (props.currentUser?.allowed_menus && props.currentUser.allowed_menus.length) {
-      return props.currentUser.allowed_menus;
-    }
-    if (props.currentUser?.role === 'Administrador') {
-      return [
+      list = [...props.currentUser.allowed_menus];
+    } else if (props.currentUser?.role === 'Administrador') {
+      list = [
         'Início',
         'Pesquisa Avançada',
         'Documentos',
+        'Validação',
         'Projetos',
         'Despachos',
         'Malotes Digitais',
@@ -51,7 +64,7 @@
         'AI Command Assistant',
       ];
     } else if (props.currentUser?.role === 'Qualidade') {
-      return [
+      list = [
         'Início',
         'Pesquisa Avançada',
         'Documentos',
@@ -59,7 +72,7 @@
         'Auditoria & Conformidade',
       ];
     } else {
-      return [
+      list = [
         'Início',
         'Pesquisa Avançada',
         'Documentos',
@@ -68,6 +81,21 @@
         'Solicitar OI',
       ];
     }
+
+    if (podeValidar.value) {
+      if (!list.includes('Validação')) {
+        const docIndex = list.indexOf('Documentos');
+        if (docIndex !== -1) {
+          list.splice(docIndex + 1, 0, 'Validação');
+        } else {
+          list.push('Validação');
+        }
+      }
+    } else {
+      list = list.filter((m) => m !== 'Validação');
+    }
+
+    return list;
   });
 
   const getMenuIcon = (menuTitle) => {
@@ -78,6 +106,8 @@
         return Search;
       case 'Documentos':
         return FileText;
+      case 'Validação':
+        return ShieldCheck;
       case 'Gestão de Usuários':
         return UserCheck;
       case 'Importar Arquivos':
@@ -126,7 +156,14 @@
         "
       >
         <component :is="getMenuIcon(item)" :size="18" class="menu-icon" />
-        <span>{{ item }}</span>
+        <span class="menu-label">{{ item }}</span>
+        <span
+          v-if="item === 'Validação' && pendingCount > 0"
+          class="menu-pending-badge"
+          title="Documentos pendentes de validação"
+        >
+          {{ pendingCount }}
+        </span>
       </a>
     </nav>
 
@@ -218,6 +255,33 @@
 
   .menu-icon {
     flex-shrink: 0;
+  }
+
+  .menu-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .menu-pending-badge {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: #ffffff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.15rem 0.5rem;
+    border-radius: 9999px;
+    min-width: 1.25rem;
+    text-align: center;
+    line-height: 1;
+    box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+    flex-shrink: 0;
+  }
+
+  .menu-item.active .menu-pending-badge {
+    background: #ffffff;
+    color: #7e22ce;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
   }
 
   .sidebar-credential-card {

@@ -1,11 +1,12 @@
 <script setup>
-  import { ref, computed, nextTick, onMounted } from 'vue';
+  import { ref, computed, nextTick, onMounted, watch } from 'vue';
   import { createUser, uploadDocument, askQuestion } from '../services/api.js';
-  import { listarMeus } from '../services/documentos.js';
+  import { listarMeus, listarPendentes } from '../services/documentos.js';
   import SidebarMenu from './dashboard/SidebarMenu.vue';
   import AnswerArea from './dashboard/AnswerArea.vue';
   import QuestionArea from './dashboard/QuestionArea.vue';
   import DocumentsManager from './dashboard/DocumentsManager.vue';
+  import ValidationQueue from './dashboard/ValidationQueue.vue';
   import {
     Search,
     FileText,
@@ -475,8 +476,46 @@
     }
   };
 
+  const pendingCount = ref(0);
+
+  const podeValidar = computed(() => {
+    return (
+      props.currentUser?.pode_validar === true ||
+      (!('pode_validar' in (props.currentUser || {})) &&
+        props.currentUser?.role === 'Administrador')
+    );
+  });
+
+  const carregarContadorPendentes = async () => {
+    if (!podeValidar.value) {
+      pendingCount.value = 0;
+      return;
+    }
+    try {
+      const data = await listarPendentes({ page: 1 });
+      pendingCount.value = data?.count ?? (Array.isArray(data?.results) ? data.results.length : 0);
+    } catch {
+      pendingCount.value = 0;
+    }
+  };
+
+  watch(
+    () => props.currentUser,
+    (user) => {
+      carregarContadorPendentes();
+      const hasPermission =
+        user?.pode_validar === true ||
+        (!('pode_validar' in (user || {})) && user?.role === 'Administrador');
+      if (!hasPermission && activeMenu.value === 'Validação') {
+        activeMenu.value = 'Início';
+      }
+    },
+    { deep: true }
+  );
+
   onMounted(() => {
     carregarDocumentosRecentes();
+    carregarContadorPendentes();
   });
 
   // Menus padrão para fallback por perfil caso não venha no objeto
@@ -489,6 +528,7 @@
         'Início',
         'Pesquisa Avançada',
         'Documentos',
+        'Validação',
         'Projetos',
         'Despachos',
         'Malotes Digitais',
@@ -524,6 +564,7 @@
     <SidebarMenu
       :current-user="props.currentUser"
       :active-menu="activeMenu"
+      :pending-count="pendingCount"
       @select-menu="(item) => (activeMenu = item)"
       @open-user-modal="showUserModal = true"
     />
@@ -553,9 +594,16 @@
         </div>
       </header>
 
+      <!-- Visão de Validação Técnica (AKA-49) -->
+      <ValidationQueue
+        v-if="activeMenu === 'Validação'"
+        :current-user="props.currentUser"
+        @item-decidido="carregarContadorPendentes"
+      />
+
       <!-- Visão Central de Gestão e Validação de Documentos (AKA-94) -->
       <DocumentsManager
-        v-if="activeMenu === 'Documentos'"
+        v-else-if="activeMenu === 'Documentos'"
         :current-user="props.currentUser"
         @open-upload-modal="openUploadModal"
       />
