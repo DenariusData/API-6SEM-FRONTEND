@@ -14,6 +14,8 @@ const TOKEN_STORAGE_KEY = 'akaer_token';
 
 /**
  * Classe customizada de erro de API para facilitar a inspeção de status e detalhe.
+ * `field` vem do backend quando o erro é de um campo específico
+ * (ex.: DadosInvalidos do upload devolve { detail, field }).
  */
 export class ApiError extends Error {
   constructor(message, status = 0, data = null) {
@@ -22,6 +24,7 @@ export class ApiError extends Error {
     this.status = status;
     this.data = data;
     this.detail = data?.detail || message;
+    this.field = data?.field || data?.campo || null;
   }
 }
 
@@ -121,6 +124,13 @@ export async function apiFetch(endpoint, options = {}) {
 }
 
 /**
+ * Atalho para GET.
+ */
+export function apiGet(endpoint, options = {}) {
+  return apiFetch(endpoint, { ...options, method: 'GET' });
+}
+
+/**
  * =========================================================
  * Funções de Serviço Específicas
  * =========================================================
@@ -151,6 +161,15 @@ export async function uploadDocument(formData) {
   });
 }
 
+// Opções do formulário de upload (S2-32)
+export const listarTiposDocumento = () => apiGet('/api/tipos-documento/');
+export const listarAreas = () => apiGet('/api/areas/'); // traz categorias e subcategorias aninhadas
+export const listarNiveisSigilo = () => apiGet('/api/niveis-sigilo/');
+// ?area= filtra pelos responsáveis da área principal escolhida no formulário
+export const listarResponsaveis = (area) =>
+  apiGet(area ? `/api/responsaveis/?area=${encodeURIComponent(area)}` : '/api/responsaveis/');
+export const listarIdiomas = () => apiGet('/api/idiomas/');
+
 export { listarPendentes, listarMeus, detalhe, aprovar, devolver, reenviar } from './documentos.js';
 import * as documentosService from './documentos.js';
 
@@ -167,6 +186,7 @@ export async function askQuestion(pergunta, idioma) {
 
 export default {
   apiFetch,
+  apiGet,
   getToken,
   setToken,
   removeToken,
@@ -174,6 +194,11 @@ export default {
   login,
   createUser,
   uploadDocument,
+  listarTiposDocumento,
+  listarAreas,
+  listarNiveisSigilo,
+  listarResponsaveis,
+  listarIdiomas,
   askQuestion,
   ...documentosService,
 };
