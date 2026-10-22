@@ -165,7 +165,9 @@ export async function uploadDocument(formData) {
 export const listarTiposDocumento = () => apiGet('/api/tipos-documento/');
 export const listarAreas = () => apiGet('/api/areas/'); // traz categorias e subcategorias aninhadas
 export const listarNiveisSigilo = () => apiGet('/api/niveis-sigilo/');
-export const listarResponsaveis = () => apiGet('/api/responsaveis/');
+// ?area= filtra pelos responsáveis da área principal escolhida no formulário
+export const listarResponsaveis = (area) =>
+  apiGet(area ? `/api/responsaveis/?area=${encodeURIComponent(area)}` : '/api/responsaveis/');
 export const listarIdiomas = () => apiGet('/api/idiomas/');
 
 export { listarPendentes, listarMeus, detalhe, aprovar, devolver, reenviar } from './documentos.js';

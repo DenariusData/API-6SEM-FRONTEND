@@ -7,25 +7,10 @@
    */
   import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
   import { UploadCloud, FileText, CheckCircle2, AlertCircle, RotateCw } from 'lucide-vue-next';
-  import {
-    uploadDocument,
-    listarTiposDocumento,
-    listarAreas,
-    listarNiveisSigilo,
-    listarResponsaveis,
-    listarIdiomas,
-  } from '../services/api.js';
+  import { uploadDocument } from '../services/api.js';
+  import { useOpcoesUpload } from '../composables/useOpcoesUpload.js';
 
-  const emit = defineEmits(['enviado', 'cancelar', 'enviando', 'sessionExpired']);
-
-  /* ---------- Fontes das opções (rotas em services/api.js) ---------- */
-  const FONTES = {
-    tipos: listarTiposDocumento,
-    areas: listarAreas,
-    niveis: listarNiveisSigilo,
-    responsaveis: listarResponsaveis,
-    idiomas: listarIdiomas,
-  };
+  const emit = defineEmits(['enviado', 'cancelar', 'enviando']);
 
   /* ---------- Status: valores fixos aceitos pelo backend ---------- */
   const STATUS = [
@@ -69,73 +54,16 @@
 
   watch(enviando, (v) => emit('enviando', v));
 
-  /* ---------- Opções ---------- */
-  const opcoes = reactive({ tipos: [], areas: [], niveis: [], responsaveis: [], idiomas: [] });
-  const carregando = reactive({
-    tipos: false,
-    areas: false,
-    niveis: false,
-    responsaveis: false,
-    idiomas: false,
-  });
-  const falhou = reactive({
-    tipos: false,
-    areas: false,
-    niveis: false,
-    responsaveis: false,
-    idiomas: false,
-  });
+  /* ---------- Opções (cache e contrato em composables/useOpcoesUpload.js) ---------- */
+  const { opcoes, carregando, falhou, carregar, carregarTodas, carregarResponsaveis } =
+    useOpcoesUpload();
 
-  // Aceita lista pura, paginação ({ results }) ou objeto com a lista numa chave
-  // qualquer ({ tipos: [...] }, { areas: [...] }, { data: { items: [...] } }...).
-  function lista(resp) {
-    if (Array.isArray(resp)) return resp;
-    if (!resp || typeof resp !== 'object') return [];
-    for (const chave of ['results', 'items', 'data', 'dados', 'resultados']) {
-      if (resp[chave] !== undefined) return lista(resp[chave]);
-    }
-    const primeiraLista = Object.values(resp).find(Array.isArray);
-    return primeiraLista ?? [];
-  }
+  const tentarDeNovo = (chave) =>
+    chave === 'responsaveis'
+      ? carregarResponsaveis(form.area_principal, true)
+      : carregar(chave, true);
 
-  const opcao = (i) => ({
-    value: String(i.id ?? i.codigo ?? i.value ?? i.pk),
-    label: i.nome ?? i.name ?? i.descricao ?? i.label ?? i.email ?? String(i.codigo ?? i.id),
-  });
-
-  // Áreas trazem categorias, que trazem subcategorias.
-  const normalizarArea = (a) => ({
-    ...opcao(a),
-    categorias: (a.categorias ?? []).map((c) => ({
-      ...opcao(c),
-      subcategorias: (c.subcategorias ?? []).map(opcao),
-    })),
-  });
-
-  async function carregar(chave) {
-    carregando[chave] = true;
-    falhou[chave] = false;
-    try {
-      const resposta = await FONTES[chave]();
-      const itens = lista(resposta);
-      opcoes[chave] = chave === 'areas' ? itens.map(normalizarArea) : itens.map(opcao);
-      if (!itens.length) {
-        console.warn(
-          `[UploadDocumento] "${chave}" respondeu sem itens. Resposta recebida:`,
-          resposta
-        );
-      }
-    } catch (e) {
-      if (e?.status === 401) return emit('sessionExpired');
-      opcoes[chave] = [];
-      falhou[chave] = true;
-      console.error(`[UploadDocumento] falha ao carregar "${chave}" (HTTP ${e?.status ?? '?'})`, e);
-    } finally {
-      carregando[chave] = false;
-    }
-  }
-
-  onMounted(() => Object.keys(FONTES).forEach(carregar));
+  onMounted(carregarTodas);
 
   /* ---------- Cascata área → categoria → subcategoria ---------- */
   const areaSelecionada = computed(() => opcoes.areas.find((a) => a.value === form.area_principal));
@@ -153,6 +81,9 @@
       form.categoria = '';
       form.subcategoria = '';
       form.areas_secundarias = form.areas_secundarias.filter((a) => a !== area);
+      // Responsável depende da área principal (D13/D19): recarrega e limpa a escolha.
+      form.responsavel = '';
+      carregarResponsaveis(area);
     }
   );
   watch(
@@ -262,12 +193,8 @@
 
   function aplicarErroBackend(e) {
     const msg = e?.detail || e?.message || 'Não foi possível enviar o documento. Tente novamente.';
-    // DocumentoDuplicado (409) não traz "field": o conflito é no identificador + revisão.
-    const campo =
-      e?.field ||
-      e?.data?.field ||
-      e?.data?.campo ||
-      (e?.status === 409 ? 'identificador_codigo' : null);
+    // O backend indica o campo em "field" (inclusive no 409 de identificador + revisão).
+    const campo = e?.field;
     if (campo && campo in form) erros[campo] = msg;
     else erroGeral.value = msg;
   }
@@ -285,7 +212,7 @@
       emit('enviado', data);
       nextTick(() => topoRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
     } catch (e) {
-      if (e?.status === 401) return emit('sessionExpired');
+      // 401 é tratado pelo apiFetch (evento global session-expired).
       aplicarErroBackend(e);
       rolarParaErro();
     } finally {
@@ -369,7 +296,7 @@
           </select>
           <small v-if="falhou.tipos" class="falha">
             Lista indisponível.
-            <button type="button" class="link" @click="carregar('tipos')">
+            <button type="button" class="link" @click="tentarDeNovo('tipos')">
               <RotateCw :size="12" /> Tentar de novo
             </button>
           </small>
@@ -446,7 +373,7 @@
           </select>
           <small v-if="falhou.areas" class="falha">
             Lista indisponível.
-            <button type="button" class="link" @click="carregar('areas')">
+            <button type="button" class="link" @click="tentarDeNovo('areas')">
               <RotateCw :size="12" /> Tentar de novo
             </button>
           </small>
@@ -526,7 +453,7 @@
         </div>
         <small v-if="falhou.niveis" class="falha">
           Lista indisponível.
-          <button type="button" class="link" @click="carregar('niveis')">
+          <button type="button" class="link" @click="tentarDeNovo('niveis')">
             <RotateCw :size="12" /> Tentar de novo
           </button>
         </small>
@@ -558,22 +485,24 @@
           <select
             id="up-resp"
             v-model="form.responsavel"
-            :disabled="carregando.responsaveis"
+            :disabled="!form.area_principal || carregando.responsaveis"
             :class="{ invalido: erros.responsavel }"
           >
-            <option value="">{{ placeholder(carregando.responsaveis) }}</option>
+            <option value="">
+              {{ placeholder(carregando.responsaveis, !form.area_principal, 'a área principal') }}
+            </option>
             <option v-for="o in opcoes.responsaveis" :key="o.value" :value="o.value">
               {{ o.label }}
             </option>
           </select>
           <small v-if="falhou.responsaveis" class="falha">
             Lista indisponível.
-            <button type="button" class="link" @click="carregar('responsaveis')">
+            <button type="button" class="link" @click="tentarDeNovo('responsaveis')">
               <RotateCw :size="12" /> Tentar de novo
             </button>
           </small>
-          <small v-if="semOpcoes('responsaveis')" class="falha"
-            >Nenhuma opção cadastrada no sistema.</small
+          <small v-if="form.area_principal && semOpcoes('responsaveis')" class="falha"
+            >Nenhum responsável disponível para esta área.</small
           >
           <small v-if="erros.responsavel" class="erro">{{ erros.responsavel }}</small>
         </div>
@@ -593,7 +522,7 @@
           </select>
           <small v-if="falhou.idiomas" class="falha">
             Lista indisponível.
-            <button type="button" class="link" @click="carregar('idiomas')">
+            <button type="button" class="link" @click="tentarDeNovo('idiomas')">
               <RotateCw :size="12" /> Tentar de novo
             </button>
           </small>

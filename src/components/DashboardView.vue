@@ -49,8 +49,6 @@
     },
   });
 
-  const emit = defineEmits(['sessionExpired']);
-
   const activeMenu = ref('Início');
   const activeTab = ref('AI Command Assistant');
 
@@ -666,7 +664,6 @@
               @enviado="onUploadEnviado"
               @enviando="(v) => (uploadLoading = v)"
               @cancelar="closeUploadModal"
-              @session-expired="emit('sessionExpired')"
             />
           </div>
         </div>
