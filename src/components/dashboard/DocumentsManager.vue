@@ -7,6 +7,7 @@
     aprovar,
     devolver,
   } from '../../services/documentos.js';
+  import EtiquetaProcessamento from './EtiquetaProcessamento.vue';
   import {
     FileText,
     CheckCircle2,
@@ -457,6 +458,17 @@
                 <span :class="['status-badge', getStatusClass(currentDetail.status_validacao)]">
                   {{ formatarStatus(currentDetail.status_validacao) }}
                 </span>
+              </div>
+
+              <div class="detail-field">
+                <label>Busca:</label>
+                <EtiquetaProcessamento
+                  v-if="currentDetail.status_validacao === 'DISPONIVEL'"
+                  :status-validacao="currentDetail.status_validacao"
+                  :status-processamento="currentDetail.status_processamento"
+                  :erro="currentDetail.erro_processamento || ''"
+                />
+                <span v-else class="detail-muted">Após a aprovação</span>
               </div>
 
               <div class="detail-field">
@@ -1103,6 +1115,15 @@
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+  }
+
+  .detail-field :deep(.proc) {
+    align-self: flex-start;
+  }
+
+  .detail-muted {
+    color: #94a3b8;
+    font-size: 0.85rem;
   }
 
   .detail-field label {

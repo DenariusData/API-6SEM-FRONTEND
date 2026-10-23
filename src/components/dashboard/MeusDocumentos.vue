@@ -6,6 +6,9 @@
    * validador em destaque e o botão "Corrigir e reenviar", que abre o
    * formulário de upload em modo edição (AKA-60). O detalhe
    * (GET /api/documents/<id>/) mostra o histórico com data e quem fez.
+   *
+   * Status de processamento para a busca (AKA-65): etiqueta abaixo do estado
+   * na tabela e no detalhe, só para documentos disponíveis.
    */
   import { computed, onMounted, ref, watch } from 'vue';
   import {
@@ -23,6 +26,7 @@
     ChevronRight,
   } from 'lucide-vue-next';
   import { listarMeus, detalhe } from '../../services/documentos.js';
+  import EtiquetaProcessamento from './EtiquetaProcessamento.vue';
 
   const emit = defineEmits(['openUploadModal', 'editDocument']);
 
@@ -241,9 +245,15 @@
               <td>{{ doc.numero_revisao }}</td>
               <td>{{ formatarData(doc.criado_em) }}</td>
               <td>
-                <span :class="['etiqueta', estado(doc.status_validacao).classe]">
-                  {{ estado(doc.status_validacao).rotulo }}
-                </span>
+                <div class="estados">
+                  <span :class="['etiqueta', estado(doc.status_validacao).classe]">
+                    {{ estado(doc.status_validacao).rotulo }}
+                  </span>
+                  <EtiquetaProcessamento
+                    :status-validacao="doc.status_validacao"
+                    :status-processamento="doc.status_processamento"
+                  />
+                </div>
               </td>
               <td class="col-acoes">
                 <div class="acoes">
@@ -341,7 +351,25 @@
               <span :class="['etiqueta', estado(docDetalhe.status_validacao).classe]">
                 {{ estado(docDetalhe.status_validacao).rotulo }}
               </span>
+              <EtiquetaProcessamento
+                :status-validacao="docDetalhe.status_validacao"
+                :status-processamento="docDetalhe.status_processamento"
+                :erro="docDetalhe.erro_processamento || ''"
+              />
             </div>
+            <p
+              v-if="
+                docDetalhe.status_validacao === 'DISPONIVEL' &&
+                docDetalhe.status_processamento === 'ERRO' &&
+                docDetalhe.erro_processamento
+              "
+              class="erro-processamento"
+            >
+              {{ docDetalhe.erro_processamento }}
+            </p>
+            <p v-else-if="docDetalhe.status_validacao !== 'DISPONIVEL'" class="nota-processamento">
+              A preparação para a busca começa depois que o documento for aprovado.
+            </p>
 
             <div v-if="comentarioDetalhe" class="comentario comentario--bloco">
               <MessageSquare :size="16" />
@@ -584,7 +612,7 @@
     font-size: 0.85rem;
   }
   .tabela th {
-    padding: 0.8rem 1rem;
+    padding: 0.8rem 0.75rem;
     border-bottom: 1px solid var(--borda);
     background: #f8fafc;
     color: var(--suave);
@@ -596,7 +624,7 @@
     white-space: nowrap;
   }
   .tabela td {
-    padding: 0.85rem 0.9rem;
+    padding: 0.85rem 0.75rem;
     border-bottom: 1px solid #f1f5f9;
     vertical-align: middle;
   }
@@ -605,7 +633,7 @@
   }
   .col-titulo {
     font-weight: 600;
-    min-width: 200px;
+    min-width: 170px;
   }
   .mono {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -793,7 +821,31 @@
     padding: 1.25rem 1.5rem;
   }
   .detalhe__estado {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
     margin-bottom: 1rem;
+  }
+  .estados {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.3rem;
+  }
+  .erro-processamento,
+  .nota-processamento {
+    margin: -0.5rem 0 1rem;
+    font-size: 0.78rem;
+    line-height: 1.45;
+  }
+  .erro-processamento {
+    padding: 0.5rem 0.7rem;
+    border-radius: 7px;
+    background: #fef2f2;
+    color: #991b1b;
+  }
+  .nota-processamento {
+    color: var(--suave);
   }
   .detalhe__rodape {
     display: flex;
