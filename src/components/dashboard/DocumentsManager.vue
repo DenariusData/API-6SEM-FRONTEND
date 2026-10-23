@@ -6,7 +6,6 @@
     detalhe,
     aprovar,
     devolver,
-    reenviar,
   } from '../../services/documentos.js';
   import {
     FileText,
@@ -31,7 +30,7 @@
     },
   });
 
-  const emit = defineEmits(['openUploadModal']);
+  const emit = defineEmits(['openUploadModal', 'editDocument']);
 
   // AKA-50 / AKA-94: Apenas quem tem pode_validar (exclusivo Administrador no backend)
   // pode acessar a fila de validação e aprovar/devolver documentos.
@@ -170,23 +169,10 @@
     }
   };
 
-  const handleReenviar = async (doc) => {
-    processandoAcao.value = true;
-    feedbackMessage.value = '';
-
-    try {
-      await reenviar(doc.id, {});
-      feedbackType.value = 'success';
-      feedbackMessage.value = `Documento ${doc.identificador_codigo || doc.titulo} reenviado para validação técnica!`;
-      showDetailModal.value = false;
-      await carregarDocumentos();
-    } catch (err) {
-      feedbackType.value = 'error';
-      feedbackMessage.value =
-        err?.detail || err?.message || 'Falha ao reenviar documento para validação.';
-    } finally {
-      processandoAcao.value = false;
-    }
+  // S2-36: corrigir abre o formulário de upload em modo edição (no DashboardView).
+  const abrirCorrecao = (doc) => {
+    showDetailModal.value = false;
+    emit('editDocument', doc.id);
   };
 
   const formatarStatus = (status) => {
@@ -228,6 +214,15 @@
   onMounted(() => {
     carregarDocumentos();
   });
+
+  // Chamado pelo DashboardView depois que o formulário em modo edição reenvia.
+  const aposReenvio = async () => {
+    feedbackType.value = 'success';
+    feedbackMessage.value = 'Documento reenviado para validação.';
+    await carregarDocumentos();
+  };
+
+  defineExpose({ carregarDocumentos, aposReenvio });
 </script>
 
 <template>
@@ -406,17 +401,16 @@
                     </button>
                   </template>
 
-                  <!-- Ação de reenvio ocultada temporariamente (endpoint /reenviar/ em andamento na AKA-47) -->
                   <button
-                    v-if="false && doc.status_validacao === 'DEVOLVIDO'"
+                    v-if="doc.status_validacao === 'DEVOLVIDO'"
                     type="button"
                     class="action-icon-btn btn-resend"
-                    title="Reenviar para validação"
+                    title="Corrigir e reenviar para validação"
                     :disabled="processandoAcao"
-                    @click="handleReenviar(doc)"
+                    @click="abrirCorrecao(doc)"
                   >
                     <RotateCcw :size="16" />
-                    <span>Reenviar</span>
+                    <span>Corrigir</span>
                   </button>
                 </div>
               </td>
@@ -559,16 +553,15 @@
                 </button>
               </template>
 
-              <!-- Ação de reenvio ocultada temporariamente (endpoint /reenviar/ em andamento na AKA-47) -->
               <button
-                v-if="false && currentDetail.status_validacao === 'DEVOLVIDO'"
+                v-if="currentDetail.status_validacao === 'DEVOLVIDO'"
                 type="button"
                 class="btn-modal-action btn-resend"
                 :disabled="processandoAcao"
-                @click="handleReenviar(currentDetail)"
+                @click="abrirCorrecao(currentDetail)"
               >
                 <RotateCcw :size="16" />
-                <span>Reenviar para Validação</span>
+                <span>Corrigir e Reenviar</span>
               </button>
 
               <button type="button" class="btn-modal-cancel" @click="showDetailModal = false">

@@ -124,18 +124,20 @@ export async function devolver(id, motivoOuDados) {
 }
 
 /**
- * Reenvia um documento devolvido para nova rodada de validação técnica.
+ * Reenvia um documento devolvido para nova rodada de validação técnica (S2-36).
+ * PUT multipart com os campos corrigidos (o backend valida só os enviados) e,
+ * se trocado, o novo `arquivo`. O documento volta para AGUARDANDO_VALIDACAO.
  *
  * @param {string|number} id - Identificador único do documento
- * @param {object|FormData} [dados={}] - Novos metadados ou arquivo corrigido
- * @returns {Promise<object>} Registro do documento reenviado
+ * @param {FormData} dados - Campos alterados e, opcionalmente, o novo PDF
+ * @returns {Promise<object>} { message, id, status_validacao }
  */
-export async function reenviar(id, dados = {}) {
+export async function reenviar(id, dados) {
   if (!id) {
     throw new Error('O identificador do documento é obrigatório.');
   }
   return apiFetch(`/api/documents/${id}/reenviar/`, {
-    method: 'POST',
+    method: 'PUT',
     body: dados,
   });
 }
