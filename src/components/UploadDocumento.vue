@@ -22,6 +22,12 @@
   } from 'lucide-vue-next';
   import { uploadDocument } from '../services/api.js';
   import { detalhe, reenviar } from '../services/documentos.js';
+  import {
+    acharOpcao,
+    acharCaminhoSubcategoria,
+    camposAlterados,
+    montarPayload,
+  } from '../utils/edicaoDocumento.js';
   import { useOpcoesUpload } from '../composables/useOpcoesUpload.js';
 
   const props = defineProps({
@@ -72,6 +78,7 @@
   const enviando = ref(false);
   const arrastando = ref(false);
   const topoRef = ref(null);
+  const inputArquivo = ref(null);
 
   watch(enviando, (v) => emit('enviando', v));
 
@@ -79,10 +86,14 @@
   const { opcoes, carregando, falhou, carregar, carregarTodas, carregarResponsaveis } =
     useOpcoesUpload();
 
-  const tentarDeNovo = (chave) =>
-    chave === 'responsaveis'
-      ? carregarResponsaveis(form.area_principal, true)
-      : carregar(chave, true);
+  async function tentarDeNovo(chave) {
+    if (chave === 'responsaveis') await carregarResponsaveis(form.area_principal, true);
+    else await carregar(chave, true);
+    // No modo edição, a lista que voltou pode completar campos que não foram preenchidos.
+    if (modoEdicao.value && documentoOriginal.value && camposNaoPreenchidos.value.length) {
+      await completarPreenchimento();
+    }
+  }
 
   onMounted(async () => {
     await carregarTodas();
@@ -135,6 +146,8 @@
   const carregandoDocumento = ref(false);
   const erroDocumento = ref('');
   const camposNaoPreenchidos = ref([]);
+  // O detalhe ainda não devolve referencia_normativa: o valor salvo não aparece aqui.
+  const referenciaOculta = ref(false);
   let valoresIniciais = {};
 
   // Última devolução do histórico (quem devolveu e quando).
@@ -148,33 +161,6 @@
   const comentarioValidador = computed(
     () => documentoOriginal.value?.comentario_devolucao || ultimaDevolucao.value?.comentario || ''
   );
-
-  const normalizarTexto = (t) =>
-    String(t ?? '')
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .trim()
-      .toLowerCase();
-
-  // O detalhe devolve nomes, não ids: acha a opção pelo nome exibido.
-  const acharPorNome = (lista, nome) =>
-    nome ? lista.find((o) => normalizarTexto(o.label) === normalizarTexto(nome)) : undefined;
-
-  // O detalhe traz só a subcategoria e os nomes das áreas: área principal e
-  // categoria saem da árvore de GET /api/areas/.
-  function acharCaminhoSubcategoria(d) {
-    const nomesAreas = (d.areas ?? []).map(normalizarTexto);
-    const candidatos = [];
-    for (const area of opcoes.areas) {
-      for (const categoria of area.categorias) {
-        const sub = acharPorNome(categoria.subcategorias, d.subcategoria);
-        if (sub) candidatos.push({ area, categoria, sub });
-      }
-    }
-    return (
-      candidatos.find((c) => nomesAreas.includes(normalizarTexto(c.area.label))) ?? candidatos[0]
-    );
-  }
 
   const somenteData = (v) => (v ? String(v).slice(0, 10) : '');
 
@@ -199,15 +185,69 @@
     }
   }
 
+  // Campos do formulário que dependem das listas de opções, por rótulo do aviso.
+  const CAMPOS_DEPENDENTES = {
+    'Tipo de documento': ['tipo_documento'],
+    'Nível sugerido': ['nivel_sigilo'],
+    Idioma: ['idioma'],
+    'Área, categoria e subcategoria': [
+      'area_principal',
+      'categoria',
+      'subcategoria',
+      'areas_secundarias',
+    ],
+    Responsável: ['responsavel'],
+  };
+
+  // Resolve os campos de `rotulos` a partir do detalhe. Devolve os valores
+  // achados e os rótulos que não deu para preencher com certeza.
+  async function resolverOpcoes(d, rotulos) {
+    const valores = {};
+    const faltando = [];
+    const definir = (rotulo, achado) => {
+      if (achado) Object.assign(valores, achado);
+      else faltando.push(rotulo);
+    };
+    const quer = (rotulo) => rotulos.includes(rotulo);
+
+    if (quer('Tipo de documento')) {
+      const o = acharOpcao(opcoes.tipos, d.tipo_documento_id, d.tipo_documento);
+      definir('Tipo de documento', o && { tipo_documento: o.value });
+    }
+    if (quer('Nível sugerido')) {
+      const o = acharOpcao(opcoes.niveis, d.nivel_sigilo_sugerido_id, d.nivel_sigilo_sugerido);
+      definir('Nível sugerido', o && { nivel_sigilo: o.value });
+    }
+    if (quer('Idioma')) {
+      const o = acharOpcao(opcoes.idiomas, d.idioma_codigo, d.idioma);
+      definir('Idioma', o && { idioma: o.value });
+    }
+    if (quer('Área, categoria e subcategoria')) {
+      const c = acharCaminhoSubcategoria(opcoes.areas, d);
+      definir(
+        'Área, categoria e subcategoria',
+        c && {
+          area_principal: c.area.value,
+          categoria: c.categoria.value,
+          subcategoria: c.sub.value,
+          areas_secundarias: (d.areas ?? [])
+            .map((nome) => acharOpcao(opcoes.areas, null, nome)?.value)
+            .filter((id) => id && id !== c.area.value),
+        }
+      );
+    }
+    if (quer('Responsável')) {
+      // A lista de responsáveis depende da área principal.
+      const area = valores.area_principal ?? form.area_principal;
+      if (area) await carregarResponsaveis(area);
+      const o = area && acharOpcao(opcoes.responsaveis, d.responsavel_id, d.responsavel);
+      definir('Responsável', o && { responsavel: o.value });
+    }
+    return { valores, faltando };
+  }
+
   async function preencher(d) {
     preenchendo = true;
-    const faltando = [];
-    const valor = (opcaoAchada, rotulo) => {
-      if (opcaoAchada) return opcaoAchada.value;
-      faltando.push(rotulo);
-      return '';
-    };
-
     form.titulo = d.titulo ?? '';
     form.identificador_codigo = d.identificador_codigo ?? '';
     form.numero_revisao = d.numero_revisao ?? '';
@@ -217,28 +257,10 @@
     form.status = d.status || 'VIGENTE';
     form.origem_fonte = d.origem_fonte ?? '';
     form.referencia_normativa = d.referencia_normativa ?? '';
-    form.tipo_documento = valor(acharPorNome(opcoes.tipos, d.tipo_documento), 'Tipo de documento');
-    form.nivel_sigilo = valor(
-      acharPorNome(opcoes.niveis, d.nivel_sigilo_sugerido),
-      'Nível sugerido'
-    );
-    form.idioma = valor(acharPorNome(opcoes.idiomas, d.idioma), 'Idioma');
+    referenciaOculta.value = !('referencia_normativa' in d);
 
-    const caminho = acharCaminhoSubcategoria(d);
-    if (caminho) {
-      form.area_principal = caminho.area.value;
-      form.categoria = caminho.categoria.value;
-      form.subcategoria = caminho.sub.value;
-    } else {
-      faltando.push('Área, categoria e subcategoria');
-    }
-    form.areas_secundarias = (d.areas ?? [])
-      .map((nome) => acharPorNome(opcoes.areas, nome)?.value)
-      .filter((id) => id && id !== form.area_principal);
-
-    // Responsável depende da área principal: carrega a lista dela antes de escolher.
-    await carregarResponsaveis(form.area_principal);
-    form.responsavel = valor(acharPorNome(opcoes.responsaveis, d.responsavel), 'Responsável');
+    const { valores, faltando } = await resolverOpcoes(d, Object.keys(CAMPOS_DEPENDENTES));
+    Object.assign(form, valores);
 
     form.arquivo = null;
     camposNaoPreenchidos.value = faltando;
@@ -247,26 +269,26 @@
     preenchendo = false;
   }
 
-  // Campos que o backend valida juntos e precisam ir sempre em par.
-  const GRUPOS = [
-    ['area_principal', 'areas_secundarias'],
-    ['categoria', 'subcategoria'],
-  ];
-
-  const comparavel = (v) =>
-    Array.isArray(v) ? JSON.stringify([...v].sort()) : String(v ?? '').trim();
-
-  function camposAlterados() {
-    const alterados = new Set(
-      Object.keys(form).filter(
-        (campo) =>
-          campo !== 'arquivo' && comparavel(form[campo]) !== comparavel(valoresIniciais[campo])
-      )
+  // Depois de um "Tentar de novo": preenche o que ainda está vazio, sem mexer no
+  // que o autor já escolheu. O valor achado vira a referência para o reenvio.
+  async function completarPreenchimento() {
+    const vazio = (campo) =>
+      Array.isArray(form[campo]) ? !form[campo].length : !String(form[campo] ?? '').trim();
+    const pendentes = camposNaoPreenchidos.value.filter((rotulo) =>
+      (CAMPOS_DEPENDENTES[rotulo] ?? []).every(vazio)
     );
-    for (const grupo of GRUPOS) {
-      if (grupo.some((c) => alterados.has(c))) grupo.forEach((c) => alterados.add(c));
-    }
-    return alterados;
+    if (!pendentes.length) return;
+
+    preenchendo = true;
+    const { valores, faltando } = await resolverOpcoes(documentoOriginal.value, pendentes);
+    Object.assign(form, valores);
+    Object.assign(valoresIniciais, JSON.parse(JSON.stringify(valores)));
+    camposNaoPreenchidos.value = [
+      ...camposNaoPreenchidos.value.filter((r) => !pendentes.includes(r)),
+      ...faltando,
+    ];
+    await nextTick();
+    preenchendo = false;
   }
 
   /* ---------- Arquivo ---------- */
@@ -350,24 +372,6 @@
     );
 
   /* ---------- Envio ---------- */
-  // `somente`: no reenvio, só os campos alterados. Ali um texto vazio vai como
-  // "" para o backend limpar o campo opcional.
-  function montarPayload(somente = null) {
-    const fd = new FormData();
-    for (const [campo, valor] of Object.entries(form)) {
-      if (campo === 'arquivo') {
-        if (valor) fd.append('arquivo', valor);
-      } else if (somente && !somente.has(campo)) {
-        continue;
-      } else if (campo === 'areas_secundarias') {
-        valor.forEach((a) => fd.append('areas_secundarias', a));
-      } else if (typeof valor === 'string' && (valor.trim() || somente)) {
-        fd.append(campo, valor.trim());
-      }
-    }
-    return fd;
-  }
-
   function aplicarErroBackend(e) {
     const msg =
       e?.detail ||
@@ -386,7 +390,7 @@
     sucesso.value = false;
     if (!validar()) return rolarParaErro();
 
-    const alterados = modoEdicao.value ? camposAlterados() : null;
+    const alterados = modoEdicao.value ? camposAlterados(form, valoresIniciais) : null;
     if (modoEdicao.value && !alterados.size && !form.arquivo) {
       erroGeral.value = 'Altere ao menos um campo ou selecione um novo PDF antes de reenviar.';
       return rolarParaErro();
@@ -395,11 +399,11 @@
     enviando.value = true;
     try {
       if (modoEdicao.value) {
-        const data = await reenviar(props.documentoId, montarPayload(alterados));
+        const data = await reenviar(props.documentoId, montarPayload(form, alterados));
         sucesso.value = true;
         emit('reenviado', data);
       } else {
-        const data = await uploadDocument(montarPayload());
+        const data = await uploadDocument(montarPayload(form));
         resetar();
         sucesso.value = true;
         emit('enviado', data);
@@ -790,6 +794,10 @@
             :class="{ invalido: erros.referencia_normativa }"
             placeholder="Ex.: NBR 5410, MAN-002 rev. 03"
           />
+          <small v-if="modoEdicao && referenciaOculta" class="ajuda">
+            O valor já salvo não aparece aqui. Preencha só se quiser substituí-lo; em branco, ele é
+            mantido.
+          </small>
           <small v-if="erros.referencia_normativa" class="erro">{{
             erros.referencia_normativa
           }}</small>
@@ -805,16 +813,31 @@
         </h4>
         <label
           class="dropzone"
+          tabindex="0"
+          role="button"
+          :aria-label="
+            form.arquivo
+              ? `Arquivo selecionado: ${form.arquivo.name}. Pressione Enter para trocar`
+              : 'Selecionar arquivo PDF'
+          "
           :class="{
             invalido: erros.arquivo,
             'dropzone--arrastando': arrastando,
             'dropzone--ok': form.arquivo,
           }"
+          @keydown.enter.prevent="inputArquivo?.click()"
+          @keydown.space.prevent="inputArquivo?.click()"
           @dragover.prevent="arrastando = true"
           @dragleave.prevent="arrastando = false"
           @drop.prevent="onDrop"
         >
-          <input type="file" accept="application/pdf,.pdf" hidden @change="onArquivo" />
+          <input
+            ref="inputArquivo"
+            type="file"
+            accept="application/pdf,.pdf"
+            hidden
+            @change="onArquivo"
+          />
           <span class="dropzone__icone">
             <FileText v-if="form.arquivo" :size="20" />
             <UploadCloud v-else :size="20" />
@@ -1106,9 +1129,14 @@
     transition: all 0.15s;
   }
   .dropzone:hover,
+  .dropzone:focus-visible,
   .dropzone--arrastando {
     border-color: var(--roxo);
     background: #faf5ff;
+  }
+  .dropzone:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(126, 34, 206, 0.2);
   }
   .dropzone--ok {
     border-style: solid;
