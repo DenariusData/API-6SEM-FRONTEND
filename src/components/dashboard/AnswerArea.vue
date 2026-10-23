@@ -1,6 +1,7 @@
 <script setup>
   import { ref, nextTick } from 'vue';
-  import { Sparkles, BookOpen, Loader2 } from 'lucide-vue-next';
+  import { Sparkles, BookOpen, Loader2, Eye } from 'lucide-vue-next';
+  import DocumentViewer from '../DocumentViewer.vue';
 
   defineProps({
     messages: {
@@ -22,12 +23,25 @@
         page: 'Página',
         defaultPage: '—',
         similarity: 'Similaridade',
+        viewDocument: 'Ver documento',
+        close: 'Fechar',
         processingMessage: 'Consultando documentos técnicos...',
       }),
     },
   });
 
   const containerRef = ref(null);
+
+  // Fonte aberta no visualizador seguro (AKA-61); null = modal fechado
+  const fonteAberta = ref(null);
+
+  const abrirFonte = (src) => {
+    if (src?.documentId) fonteAberta.value = src;
+  };
+
+  const fecharFonte = () => {
+    fonteAberta.value = null;
+  };
 
   const scrollToBottom = () => {
     nextTick(() => {
@@ -86,10 +100,7 @@
                   </span>
                 </div>
                 <h5 class="source-doc-name">
-                  <a v-if="src.url" :href="src.url" target="_blank" rel="noopener">
-                    {{ src.documentName || src.title }}
-                  </a>
-                  <template v-else>{{ src.documentName || src.title }}</template>
+                  {{ src.documentName || src.title }}
                 </h5>
                 <div class="source-details-row">
                   <span class="source-meta-item">
@@ -109,6 +120,15 @@
                     </span>
                   </template>
                 </div>
+                <button
+                  v-if="src.documentId"
+                  type="button"
+                  class="btn-view-source"
+                  @click="abrirFonte(src)"
+                >
+                  <Eye :size="13" />
+                  <span>{{ currentAiTexts.viewDocument }}</span>
+                </button>
               </div>
             </div>
           </div>
@@ -140,6 +160,33 @@
       </div>
     </div>
   </div>
+
+  <!-- Modal do visualizador seguro (AKA-61): fechar desmonta e revoga os blob URLs -->
+  <Teleport to="body">
+    <div v-if="fonteAberta" class="viewer-modal-backdrop" @click.self="fecharFonte">
+      <div class="viewer-modal-card">
+        <header class="viewer-modal-header">
+          <div class="viewer-modal-heading">
+            <strong>{{ fonteAberta.documentName || fonteAberta.title }}</strong>
+            <span v-if="fonteAberta.code" class="source-code-tag">{{ fonteAberta.code }}</span>
+          </div>
+          <button
+            type="button"
+            class="viewer-modal-close"
+            :title="currentAiTexts.close"
+            @click="fecharFonte"
+          >
+            &times;
+          </button>
+        </header>
+        <DocumentViewer
+          :document-id="String(fonteAberta.documentId)"
+          :pagina-inicial="Number(fonteAberta.pageStart) || 1"
+          :titulo="fonteAberta.documentName || fonteAberta.title || ''"
+        />
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -301,15 +348,86 @@
     line-height: 1.35;
   }
 
-  .source-doc-name a {
+  .btn-view-source {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-top: 0.5rem;
+    padding: 0.3rem 0.65rem;
+    background: #f3e8ff;
+    border: 1px solid #d8b4fe;
+    border-radius: 6px;
     color: #7e22ce;
-    text-decoration: none;
-    transition: color 0.15s ease;
+    font-size: 0.74rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease;
   }
 
-  .source-doc-name a:hover {
-    color: #581c87;
-    text-decoration: underline;
+  .btn-view-source:hover {
+    background: #e9d5ff;
+  }
+
+  .viewer-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1200;
+    padding: 1.5rem;
+  }
+
+  .viewer-modal-card {
+    width: 100%;
+    max-width: 960px;
+    max-height: 95vh;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 1rem;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  }
+
+  .viewer-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .viewer-modal-heading {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-width: 0;
+    color: #ffffff;
+    font-size: 0.95rem;
+  }
+
+  .viewer-modal-heading strong {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .viewer-modal-close {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 0.25rem;
+  }
+
+  .viewer-modal-close:hover {
+    color: #ffffff;
   }
 
   .source-details-row {

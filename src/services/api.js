@@ -124,6 +124,52 @@ export async function apiFetch(endpoint, options = {}) {
 }
 
 /**
+ * GET autenticado que devolve o corpo como Blob (ex.: páginas do visualizador AKA-61).
+ * Erros seguem o mesmo padrão do apiFetch (ApiError com status e detail).
+ *
+ * @param {string} endpoint - Caminho da rota
+ * @param {object} options - Opções do fetch (signal, skipAuthRedirect, etc.)
+ * @returns {Promise<Blob>}
+ */
+export async function apiFetchBlob(endpoint, options = {}) {
+  const { headers = {}, skipAuthRedirect = false, ...restOptions } = options;
+
+  const url = endpoint.startsWith('http')
+    ? endpoint
+    : `${API_BASE_URL}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
+
+  const requestHeaders = { ...headers };
+  const token = getToken();
+  if (token && !requestHeaders.Authorization && !requestHeaders.authorization) {
+    requestHeaders.Authorization = `Bearer ${token}`;
+  }
+
+  let response;
+  try {
+    response = await fetch(url, { method: 'GET', headers: requestHeaders, ...restOptions });
+  } catch (err) {
+    // Cancelamento proposital (AbortController) é repassado para quem chamou ignorar
+    if (err?.name === 'AbortError') throw err;
+    throw new ApiError(
+      'Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.',
+      0,
+      null
+    );
+  }
+
+  if (response.status === 401 && !skipAuthRedirect) {
+    notifySessionExpired();
+  }
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new ApiError(data?.detail || `Erro HTTP ${response.status}`, response.status, data);
+  }
+
+  return response.blob();
+}
+
+/**
  * Atalho para GET.
  */
 export function apiGet(endpoint, options = {}) {
@@ -170,7 +216,16 @@ export const listarResponsaveis = (area) =>
   apiGet(area ? `/api/responsaveis/?area=${encodeURIComponent(area)}` : '/api/responsaveis/');
 export const listarIdiomas = () => apiGet('/api/idiomas/');
 
-export { listarPendentes, listarMeus, detalhe, aprovar, devolver, reenviar } from './documentos.js';
+export {
+  listarPendentes,
+  listarMeus,
+  detalhe,
+  aprovar,
+  devolver,
+  reenviar,
+  visualizar,
+  buscarPagina,
+} from './documentos.js';
 import * as documentosService from './documentos.js';
 
 // Perguntas e Assistente de IA RAG (AKA-96)
@@ -186,6 +241,7 @@ export async function askQuestion(pergunta, idioma) {
 
 export default {
   apiFetch,
+  apiFetchBlob,
   apiGet,
   getToken,
   setToken,
