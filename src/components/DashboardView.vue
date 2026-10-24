@@ -179,6 +179,8 @@
       defaultPage: '—',
       defaultCategory: 'Documento Técnico',
       similarity: 'Similaridade',
+      viewDocument: 'Ver documento',
+      close: 'Fechar',
       serviceUnavailable:
         'O serviço de IA está indisponível no momento. Tente novamente mais tarde.',
       genericError: 'Não foi possível obter a resposta da IA.',
@@ -200,6 +202,8 @@
       defaultPage: '—',
       defaultCategory: 'Technical Document',
       similarity: 'Similarity',
+      viewDocument: 'View document',
+      close: 'Close',
       serviceUnavailable: 'The AI service is currently unavailable. Please try again later.',
       genericError: 'Could not get a response from the AI.',
       connectionError: 'Could not connect to the server. Check that the backend is running.',
@@ -275,7 +279,9 @@
         page: fonte.pagina,
         similarity: `${Math.round(fonte.similaridade * 100)}%`,
         category: 'EverySpec',
-        url: fonte.url_pdf,
+        // Abre no visualizador seguro (AKA-61); nunca link direto para o arquivo
+        documentId: fonte.documento_id || null,
+        pageStart: fonte.pagina_inicio || 1,
       }));
 
       pushAiMessage(data?.resposta || '', data?.encontrou ? sources : [], data?.idioma);

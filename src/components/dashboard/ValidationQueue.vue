@@ -1,6 +1,7 @@
 <script setup>
   import { ref, onMounted } from 'vue';
   import { listarPendentes, detalhe, aprovar, devolver } from '../../services/documentos.js';
+  import DocumentViewer from '../DocumentViewer.vue';
   import {
     ShieldCheck,
     Check,
@@ -411,7 +412,7 @@
     </div>
 
     <!-- =========================================================
-         MODAL DE DETALHES DO DOCUMENTO + PLACEHOLDER AKA-61
+         MODAL DE DETALHES DO DOCUMENTO + VISUALIZADOR AKA-61
     ========================================================= -->
     <div v-if="showDetailModal" class="modal-backdrop" @click.self="showDetailModal = false">
       <div class="modal-card modal-detail-card fade-in">
@@ -501,19 +502,12 @@
               </div>
             </div>
 
-            <!-- ESPAÇO RESERVADO DO VISUALIZADOR (AKA-61) -->
-            <div id="document-viewer-placeholder" class="viewer-placeholder-box">
-              <div class="placeholder-icon-wrap">
-                <Eye :size="30" class="placeholder-icon" />
-              </div>
-              <div class="placeholder-text-wrap">
-                <h4 class="placeholder-title">Visualização do documento em breve</h4>
-                <p class="placeholder-desc">
-                  O visualizador homologado com marca d'água de sigilo (AKA-61) será integrado nesta
-                  seção a partir de 21/10.
-                </p>
-              </div>
-            </div>
+            <!-- Visualizador seguro do documento (AKA-61) -->
+            <DocumentViewer
+              v-if="currentDetail.id"
+              :document-id="String(currentDetail.id)"
+              :titulo="currentDetail.titulo"
+            />
 
             <!-- Histórico de tramitação se existente -->
             <div
@@ -1154,7 +1148,7 @@
   }
 
   .modal-detail-card {
-    max-width: 800px;
+    max-width: 960px;
   }
 
   .modal-action-card {
@@ -1302,58 +1296,6 @@
     font-size: 0.72rem;
     padding: 0.15rem 0.5rem;
     border-radius: 4px;
-  }
-
-  /* PLACEHOLDER VISUALIZADOR AKA-61 */
-  .viewer-placeholder-box {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    background: #0f172a;
-    border: 2px dashed #475569;
-    border-radius: 8px;
-    padding: 1.25rem;
-    transition: all 0.2s ease;
-  }
-
-  .viewer-placeholder-box:hover {
-    border-color: #a855f7;
-    background: rgba(168, 85, 247, 0.04);
-  }
-
-  .placeholder-icon-wrap {
-    width: 52px;
-    height: 52px;
-    border-radius: 8px;
-    background: rgba(168, 85, 247, 0.12);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-
-  .placeholder-icon {
-    color: #c084fc;
-  }
-
-  .placeholder-text-wrap {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-  }
-
-  .placeholder-title {
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: #ffffff;
-    margin: 0;
-  }
-
-  .placeholder-desc {
-    font-size: 0.78rem;
-    color: #94a3b8;
-    margin: 0;
-    line-height: 1.4;
   }
 
   /* Histórico */
