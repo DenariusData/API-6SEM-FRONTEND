@@ -7,6 +7,7 @@
     aprovar,
     devolver,
   } from '../../services/documentos.js';
+  import { statusValidacao } from '../../utils/statusDocumento.js';
   import {
     FileText,
     CheckCircle2,
@@ -175,31 +176,15 @@
     emit('editDocument', doc.id);
   };
 
-  const formatarStatus = (status) => {
-    switch (status) {
-      case 'AGUARDANDO_VALIDACAO':
-        return 'Aguardando Validação';
-      case 'DISPONIVEL':
-        return 'Disponível / Aprovado';
-      case 'DEVOLVIDO':
-        return 'Devolvido';
-      default:
-        return status || 'Pendente';
-    }
+  // Rótulos e tons compartilhados com Meus documentos (utils/statusDocumento.js).
+  const CLASSE_POR_TOM = {
+    aviso: 'badge-warning',
+    perigo: 'badge-danger',
+    sucesso: 'badge-success',
+    neutro: 'badge-neutral',
   };
-
-  const getStatusClass = (status) => {
-    switch (status) {
-      case 'AGUARDANDO_VALIDACAO':
-        return 'badge-warning';
-      case 'DISPONIVEL':
-        return 'badge-success';
-      case 'DEVOLVIDO':
-        return 'badge-danger';
-      default:
-        return 'badge-neutral';
-    }
-  };
+  const formatarStatus = (status) => statusValidacao(status).rotulo;
+  const getStatusClass = (status) => CLASSE_POR_TOM[statusValidacao(status).tom];
 
   watch(podeValidar, (canValidate) => {
     if (!canValidate && activeTab.value === 'pendentes') {
