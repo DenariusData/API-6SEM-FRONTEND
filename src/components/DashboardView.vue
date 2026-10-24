@@ -116,25 +116,40 @@
   };
 
   /* =========================================================
-     UPLOAD DE DOCUMENTOS - S2-32
+     UPLOAD DE DOCUMENTOS - S2-32 / S2-36
      O formulário, a validação e o envio ficam em UploadDocumento.vue.
-     Aqui só abrimos/fechamos o modal e atualizamos a lista.
+     Aqui só abrimos/fechamos o modal (novo envio ou correção de um
+     documento devolvido) e atualizamos as listas.
   ========================================================= */
 
   const showUploadModal = ref(false);
   const uploadLoading = ref(false);
+  const documentoEmEdicao = ref(null); // id do documento devolvido (modo edição)
+  const documentsManagerRef = ref(null);
 
   const openUploadModal = () => {
+    documentoEmEdicao.value = null;
+    showUploadModal.value = true;
+  };
+
+  const openEditModal = (documentoId) => {
+    documentoEmEdicao.value = documentoId;
     showUploadModal.value = true;
   };
 
   const closeUploadModal = () => {
     if (uploadLoading.value) return;
     showUploadModal.value = false;
+    documentoEmEdicao.value = null;
   };
 
   const onUploadEnviado = () => {
     carregarDocumentosRecentes();
+  };
+
+  const onDocumentoReenviado = () => {
+    carregarDocumentosRecentes();
+    documentsManagerRef.value?.aposReenvio();
   };
 
   // Interação Q&A (IA com fontes via pipeline RAG do backend)
@@ -459,8 +474,10 @@
       <!-- Visão Central de Gestão e Validação de Documentos (AKA-94) -->
       <DocumentsManager
         v-else-if="activeMenu === 'Documentos'"
+        ref="documentsManagerRef"
         :current-user="props.currentUser"
         @open-upload-modal="openUploadModal"
+        @edit-document="openEditModal"
       />
 
       <template v-else>
@@ -639,7 +656,7 @@
         </section>
       </template>
 
-      <!-- Modal de Upload - S2-32 -->
+      <!-- Modal de Upload - S2-32 (novo) / S2-36 (correção e reenvio) -->
       <div v-if="showUploadModal" class="modal-overlay" @click.self="closeUploadModal">
         <div class="upload-modal-card fade-in">
           <div class="upload-modal-header">
@@ -649,8 +666,18 @@
               </div>
 
               <div>
-                <h3>Enviar novo documento</h3>
-                <p>Campos com * são obrigatórios</p>
+                <h3>
+                  {{
+                    documentoEmEdicao ? 'Corrigir e reenviar documento' : 'Enviar novo documento'
+                  }}
+                </h3>
+                <p>
+                  {{
+                    documentoEmEdicao
+                      ? 'Ajuste o que o validador apontou e reenvie'
+                      : 'Campos com * são obrigatórios'
+                  }}
+                </p>
               </div>
             </div>
 
@@ -667,7 +694,10 @@
 
           <div class="upload-modal-body">
             <UploadDocumento
+              :key="documentoEmEdicao || 'novo'"
+              :documento-id="documentoEmEdicao"
               @enviado="onUploadEnviado"
+              @reenviado="onDocumentoReenviado"
               @enviando="(v) => (uploadLoading = v)"
               @cancelar="closeUploadModal"
             />
