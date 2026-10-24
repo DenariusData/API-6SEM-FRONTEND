@@ -10,6 +10,8 @@
  * - aprovar: Aprova um documento pendente com nível de sigilo final.
  * - devolver: Devolve um documento pendente com justificativa/comentário obrigatório.
  * - reenviar: Reenvia um documento que foi devolvido para nova validação.
+ * - visualizar: Abre o documento no visualizador seguro (total de páginas + log de acesso).
+ * - buscarPagina: Baixa uma página como imagem PNG com marca d'água (Blob).
  *
  * Segurança e Autenticação:
  * - Todas as funções utilizam apiFetch centralizado, garantindo o envio automático do cabeçalho
@@ -18,7 +20,7 @@
  *   para a tela de login.
  */
 
-import { apiFetch } from './api.js';
+import { apiFetch, apiFetchBlob } from './api.js';
 
 /**
  * Converte parâmetros de consulta (objeto, string ou número de página) em query string.
@@ -142,6 +144,36 @@ export async function reenviar(id, dados) {
   });
 }
 
+/**
+ * Abre o documento no visualizador seguro (AKA-48 / AKA-61).
+ * O backend registra a VISUALIZACAO no log de acesso.
+ *
+ * @param {string} id - Identificador único (UUID) do documento
+ * @returns {Promise<object>} { total_paginas, titulo }
+ */
+export async function visualizar(id) {
+  if (!id) {
+    throw new Error('O identificador do documento é obrigatório.');
+  }
+  return apiFetch(`/api/documents/${id}/visualizar/`);
+}
+
+/**
+ * Busca uma página do documento como imagem PNG com marca d'água.
+ * O PDF original nunca chega ao navegador.
+ *
+ * @param {string} id - Identificador único (UUID) do documento
+ * @param {number} numero - Número da página (começa em 1)
+ * @param {object} [options] - Opções do fetch (ex.: { signal } para cancelar)
+ * @returns {Promise<Blob>} Imagem da página
+ */
+export async function buscarPagina(id, numero, options = {}) {
+  if (!id) {
+    throw new Error('O identificador do documento é obrigatório.');
+  }
+  return apiFetchBlob(`/api/documents/${id}/paginas/${numero}/`, options);
+}
+
 export default {
   listarPendentes,
   listarMeus,
@@ -149,4 +181,6 @@ export default {
   aprovar,
   devolver,
   reenviar,
+  visualizar,
+  buscarPagina,
 };

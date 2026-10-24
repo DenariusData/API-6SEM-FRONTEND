@@ -8,6 +8,7 @@
     devolver,
   } from '../../services/documentos.js';
   import { statusValidacao } from '../../utils/statusDocumento.js';
+  import DocumentViewer from '../DocumentViewer.vue';
   import {
     FileText,
     CheckCircle2,
@@ -471,6 +472,13 @@
                 }}</span>
               </div>
             </div>
+
+            <!-- Visualizador seguro do documento (AKA-61) -->
+            <DocumentViewer
+              v-if="currentDetail.id"
+              :document-id="String(currentDetail.id)"
+              :titulo="currentDetail.titulo"
+            />
 
             <!-- Parecer de devolução se aplicável -->
             <div
@@ -1033,6 +1041,10 @@
     overflow-y: auto;
     box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
     border: 1px solid #e2e8f0;
+  }
+
+  .detail-modal-card {
+    max-width: 960px;
   }
 
   .modal-header {
