@@ -10,7 +10,7 @@
    * Status de processamento para a busca (AKA-65): etiqueta abaixo do estado
    * na tabela e no detalhe, só para documentos disponíveis.
    */
-  import { computed, onMounted, ref, watch } from 'vue';
+  import { computed, nextTick, onMounted, ref, watch } from 'vue';
   import {
     FileText,
     RefreshCw,
@@ -26,24 +26,26 @@
     ChevronRight,
   } from 'lucide-vue-next';
   import { listarMeus, detalhe } from '../../services/documentos.js';
+  import {
+    FILTROS_STATUS as FILTROS,
+    formatarData,
+    statusValidacao,
+  } from '../../utils/statusDocumento.js';
   import EtiquetaProcessamento from './EtiquetaProcessamento.vue';
 
   const emit = defineEmits(['openUploadModal', 'editDocument']);
 
-  /* ---------- Estados de validação ---------- */
-  const ESTADOS = {
-    AGUARDANDO_VALIDACAO: { rotulo: 'Aguardando validação', classe: 'etiqueta--amarela' },
-    DEVOLVIDO: { rotulo: 'Devolvido', classe: 'etiqueta--vermelha' },
-    DISPONIVEL: { rotulo: 'Disponível', classe: 'etiqueta--verde' },
+  /* ---------- Estados de validação (rótulos em utils/statusDocumento.js) ---------- */
+  const CLASSE_POR_TOM = {
+    aviso: 'etiqueta--amarela',
+    perigo: 'etiqueta--vermelha',
+    sucesso: 'etiqueta--verde',
+    neutro: 'etiqueta--neutra',
   };
-  const estado = (valor) => ESTADOS[valor] ?? { rotulo: valor || '—', classe: 'etiqueta--neutra' };
-
-  const FILTROS = [
-    { valor: '', rotulo: 'Todos' },
-    { valor: 'AGUARDANDO_VALIDACAO', rotulo: 'Aguardando validação' },
-    { valor: 'DEVOLVIDO', rotulo: 'Devolvidos' },
-    { valor: 'DISPONIVEL', rotulo: 'Disponíveis' },
-  ];
+  const estado = (valor) => {
+    const s = statusValidacao(valor);
+    return { rotulo: s.rotulo, classe: CLASSE_POR_TOM[s.tom] };
+  };
 
   const ACOES_HISTORICO = {
     ENVIADO: { rotulo: 'Enviado', icone: Upload, classe: 'marco--enviado' },
@@ -55,7 +57,6 @@
     ACOES_HISTORICO[valor] ?? { rotulo: valor, icone: FileText, classe: 'marco--enviado' };
 
   /* ---------- Formatação ---------- */
-  const formatarData = (iso) => (iso ? new Date(iso).toLocaleDateString('pt-BR') : '—');
   const formatarDataHora = (iso) =>
     iso
       ? new Date(iso).toLocaleString('pt-BR', {
@@ -77,44 +78,44 @@
   const erro = ref('');
   const contagens = ref({});
 
+  // Cada carga ganha um número; resposta de uma carga antiga (filtro ou página
+  // trocados no meio do caminho) é descartada.
+  let ultimaCarga = 0;
+
   async function carregar() {
+    const carga = ++ultimaCarga;
     carregando.value = true;
     erro.value = '';
     try {
       const resp = await listarMeus({ status: filtro.value, page: pagina.value });
+      if (carga !== ultimaCarga) return;
       documentos.value = resp?.results ?? [];
       total.value = resp?.count ?? documentos.value.length;
       totalPaginas.value = Math.max(resp?.total_pages ?? 1, 1);
+      // Contagens por estado vêm na mesma resposta (backend AKA-63): sem chamada extra.
+      contagens.value = resp?.contagens ?? {};
+      // A página ficou vazia (ex.: o único item dela foi reenviado): volta para a última válida.
+      if (pagina.value > totalPaginas.value) pagina.value = totalPaginas.value;
     } catch (e) {
+      if (carga !== ultimaCarga) return;
       documentos.value = [];
       erro.value = e?.detail || 'Não foi possível carregar os seus documentos.';
     } finally {
-      carregando.value = false;
+      if (carga === ultimaCarga) carregando.value = false;
     }
   }
 
-  // Quantidade por estado, para as etiquetas do filtro (só o total de cada um).
-  async function carregarContagens() {
-    const pares = await Promise.all(
-      FILTROS.map(async ({ valor }) => {
-        try {
-          const resp = await listarMeus({ status: valor, page: 1 });
-          return [valor, resp?.count ?? 0];
-        } catch {
-          return [valor, null];
-        }
-      })
-    );
-    contagens.value = Object.fromEntries(pares);
-  }
+  const recarregar = () => carregar();
 
-  const recarregar = () => Promise.all([carregar(), carregarContagens()]);
-
-  watch(filtro, () => {
-    pagina.value = 1;
+  // Um watch só: trocar o filtro estando na página 2+ volta para a página 1 e
+  // carrega UMA vez (a mudança de página dispara a carga).
+  watch([filtro, pagina], ([novoFiltro], [filtroAnterior]) => {
+    if (novoFiltro !== filtroAnterior && pagina.value !== 1) {
+      pagina.value = 1;
+      return;
+    }
     carregar();
   });
-  watch(pagina, carregar);
 
   onMounted(recarregar);
 
@@ -131,24 +132,63 @@
   const carregandoDetalhe = ref(false);
   const erroDetalhe = ref('');
   const docDetalhe = ref(null);
+  const detalheRef = ref(null);
+  let ultimoDetalhe = 0;
+  let focoAnterior = null;
 
   async function abrirDetalhe(doc) {
+    const pedido = ++ultimoDetalhe;
+    focoAnterior = document.activeElement;
     detalheAberto.value = true;
     carregandoDetalhe.value = true;
     erroDetalhe.value = '';
     docDetalhe.value = null;
+    nextTick(() => detalheRef.value?.focus());
     try {
-      docDetalhe.value = await detalhe(doc.id);
+      const d = await detalhe(doc.id);
+      if (pedido === ultimoDetalhe) docDetalhe.value = d;
     } catch (e) {
-      erroDetalhe.value = e?.detail || 'Não foi possível carregar o detalhe do documento.';
+      if (pedido === ultimoDetalhe) {
+        erroDetalhe.value = e?.detail || 'Não foi possível carregar o detalhe do documento.';
+      }
     } finally {
-      carregandoDetalhe.value = false;
+      if (pedido === ultimoDetalhe) carregandoDetalhe.value = false;
     }
   }
 
-  const fecharDetalhe = () => {
+  function fecharDetalhe() {
+    ultimoDetalhe++; // resposta que ainda estiver a caminho é ignorada
     detalheAberto.value = false;
-  };
+    const foco = focoAnterior;
+    focoAnterior = null;
+    nextTick(() => foco?.focus?.());
+  }
+
+  // Esc fecha; Tab fica preso dentro do modal enquanto ele está aberto.
+  function teclaNoDetalhe(e) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      fecharDetalhe();
+      return;
+    }
+    if (e.key !== 'Tab' || !detalheRef.value) return;
+    const focaveis = [
+      ...detalheRef.value.querySelectorAll(
+        'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      ),
+    ];
+    if (!focaveis.length) return;
+    const primeiro = focaveis[0];
+    const ultimo = focaveis[focaveis.length - 1];
+    const atual = document.activeElement;
+    if (e.shiftKey && (atual === primeiro || atual === detalheRef.value)) {
+      e.preventDefault();
+      ultimo.focus();
+    } else if (!e.shiftKey && atual === ultimo) {
+      e.preventDefault();
+      primeiro.focus();
+    }
+  }
 
   // Comentário em destaque no detalhe: o da devolução atual ou o último DEVOLVIDO do histórico.
   const comentarioDetalhe = computed(() => {
@@ -160,6 +200,8 @@
 
   /* ---------- Corrigir e reenviar (abre o modo edição da AKA-60) ---------- */
   const corrigir = (doc) => {
+    ultimoDetalhe++;
+    focoAnterior = null; // o foco vai para o formulário de correção
     detalheAberto.value = false;
     emit('editDocument', doc.id);
   };
@@ -193,19 +235,18 @@
     </header>
 
     <!-- Filtro por estado -->
-    <div class="filtros" role="tablist" aria-label="Filtrar por estado">
+    <div class="filtros" role="group" aria-label="Filtrar por estado">
       <button
         v-for="f in FILTROS"
         :key="f.valor || 'todos'"
         type="button"
-        role="tab"
-        :aria-selected="filtro === f.valor"
+        :aria-pressed="filtro === f.valor"
         :class="['filtro', { 'filtro--ativo': filtro === f.valor }]"
         @click="filtro = f.valor"
       >
         {{ f.rotulo }}
-        <span v-if="contagens[f.valor] != null" class="filtro__total">{{
-          contagens[f.valor]
+        <span v-if="contagens[f.chaveContagem] != null" class="filtro__total">{{
+          contagens[f.chaveContagem]
         }}</span>
       </button>
     </div>
@@ -325,10 +366,18 @@
 
     <!-- Detalhe com histórico -->
     <div v-if="detalheAberto" class="overlay" @click.self="fecharDetalhe">
-      <div class="detalhe" role="dialog" aria-modal="true" aria-label="Detalhe do documento">
+      <div
+        ref="detalheRef"
+        class="detalhe"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="detalhe-titulo"
+        tabindex="-1"
+        @keydown="teclaNoDetalhe"
+      >
         <header class="detalhe__cabecalho">
           <div>
-            <h3>{{ docDetalhe?.titulo || 'Detalhe do documento' }}</h3>
+            <h3 id="detalhe-titulo">{{ docDetalhe?.titulo || 'Detalhe do documento' }}</h3>
             <p v-if="docDetalhe">
               {{ docDetalhe.identificador_codigo }} · Revisão {{ docDetalhe.numero_revisao }}
             </p>
@@ -410,7 +459,7 @@
             <ol v-if="docDetalhe.historico?.length" class="historico">
               <li
                 v-for="(h, i) in docDetalhe.historico"
-                :key="i"
+                :key="h.id ?? `${h.acao}-${h.criado_em}-${i}`"
                 :class="['marco', acao(h.acao).classe]"
               >
                 <span class="marco__icone"><component :is="acao(h.acao).icone" :size="14" /></span>
@@ -450,12 +499,13 @@
 
 <style scoped>
   .meus-docs {
-    --roxo: #7e22ce;
+    /* variáveis globais de assets/styles.css, com o valor atual como reserva */
+    --roxo: var(--purple-pill-text, #7e22ce);
     --roxo-escuro: #6b21a8;
-    --roxo-claro: #f3e8ff;
-    --borda: #e2e8f0;
+    --roxo-claro: var(--purple-pill-bg, #f3e8ff);
+    --borda: var(--border-light, #e2e8f0);
     --texto: #0f172a;
-    --suave: #64748b;
+    --suave: var(--text-muted, #64748b);
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
