@@ -7,6 +7,7 @@
   import QuestionArea from './dashboard/QuestionArea.vue';
   import DocumentsManager from './dashboard/DocumentsManager.vue';
   import ValidationQueue from './dashboard/ValidationQueue.vue';
+  import MeusDocumentos from './dashboard/MeusDocumentos.vue';
   import UploadDocumento from './UploadDocumento.vue';
   import {
     Search,
@@ -126,6 +127,7 @@
   const uploadLoading = ref(false);
   const documentoEmEdicao = ref(null); // id do documento devolvido (modo edição)
   const documentsManagerRef = ref(null);
+  const meusDocumentosRef = ref(null);
 
   const openUploadModal = () => {
     documentoEmEdicao.value = null;
@@ -145,11 +147,13 @@
 
   const onUploadEnviado = () => {
     carregarDocumentosRecentes();
+    meusDocumentosRef.value?.recarregar();
   };
 
   const onDocumentoReenviado = () => {
     carregarDocumentosRecentes();
     documentsManagerRef.value?.aposReenvio();
+    meusDocumentosRef.value?.recarregar();
   };
 
   // Interação Q&A (IA com fontes via pipeline RAG do backend)
@@ -472,6 +476,14 @@
       />
 
       <!-- Visão Central de Gestão e Validação de Documentos (AKA-94) -->
+      <!-- Meus documentos: envios do usuário com o estado de cada um (AKA-63) -->
+      <MeusDocumentos
+        v-else-if="activeMenu === 'Meus documentos'"
+        ref="meusDocumentosRef"
+        @open-upload-modal="openUploadModal"
+        @edit-document="openEditModal"
+      />
+
       <DocumentsManager
         v-else-if="activeMenu === 'Documentos'"
         ref="documentsManagerRef"
@@ -613,7 +625,7 @@
         <section class="recent-docs-section">
           <div class="section-header-row">
             <h3 class="section-title">Documentos Técnicos Recentes</h3>
-            <a href="#" class="link-see-all" @click.prevent="activeMenu = 'Documentos'">
+            <a href="#" class="link-see-all" @click.prevent="activeMenu = 'Meus documentos'">
               <span>Ver todos os arquivos</span>
               <ArrowRight :size="16" />
             </a>
@@ -639,7 +651,7 @@
               v-for="doc in recentDocuments"
               :key="doc.id"
               class="document-card"
-              @click="activeMenu = 'Documentos'"
+              @click="activeMenu = 'Meus documentos'"
             >
               <div class="doc-header">
                 <span class="doc-category-badge">{{ doc.category }}</span>

@@ -14,6 +14,7 @@
     Upload,
     Tag,
     Plus,
+    FolderOpen,
   } from 'lucide-vue-next';
 
   const props = defineProps({
@@ -82,6 +83,13 @@
       ];
     }
 
+    // "Meus documentos" (AKA-63) vale para todo usuário logado: fica logo depois
+    // de "Documentos", mesmo que o perfil vindo do backend ainda não traga o item.
+    if (!list.includes('Meus documentos')) {
+      const docIndex = list.indexOf('Documentos');
+      list.splice(docIndex === -1 ? Math.min(1, list.length) : docIndex + 1, 0, 'Meus documentos');
+    }
+
     if (podeValidar.value) {
       if (!list.includes('Validação')) {
         const docIndex = list.indexOf('Documentos');
@@ -106,6 +114,8 @@
         return Search;
       case 'Documentos':
         return FileText;
+      case 'Meus documentos':
+        return FolderOpen;
       case 'Validação':
         return ShieldCheck;
       case 'Gestão de Usuários':
