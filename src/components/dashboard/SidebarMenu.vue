@@ -1,21 +1,8 @@
 <script setup>
   import { computed } from 'vue';
   import logoUrl from '@/assets/logo.png';
-  import {
-    Home,
-    Search,
-    FileText,
-    Package,
-    Mail,
-    FolderGit2,
-    Sparkles,
-    ShieldCheck,
-    UserCheck,
-    Upload,
-    Tag,
-    Plus,
-    FolderOpen,
-  } from 'lucide-vue-next';
+  import { menusDoUsuario } from '@/utils/menus.js';
+  import { Home, FileText, ShieldCheck, UserCheck, FolderOpen } from 'lucide-vue-next';
 
   const props = defineProps({
     currentUser: {
@@ -38,106 +25,18 @@
 
   const emit = defineEmits(['selectMenu', 'openUserModal']);
 
-  const podeValidar = computed(() => {
-    return (
-      props.currentUser?.pode_validar === true ||
-      (!('pode_validar' in (props.currentUser || {})) &&
-        props.currentUser?.role === 'Administrador')
-    );
-  });
-
-  const activeUserMenus = computed(() => {
-    let list;
-    if (props.currentUser?.allowed_menus && props.currentUser.allowed_menus.length) {
-      list = [...props.currentUser.allowed_menus];
-    } else if (props.currentUser?.role === 'Administrador') {
-      list = [
-        'Início',
-        'Pesquisa Avançada',
-        'Documentos',
-        'Validação',
-        'Projetos',
-        'Despachos',
-        'Malotes Digitais',
-        'Gestão de Usuários',
-        'Importar Arquivos',
-        'Classificar Categorias',
-        'AI Command Assistant',
-      ];
-    } else if (props.currentUser?.role === 'Qualidade') {
-      list = [
-        'Início',
-        'Pesquisa Avançada',
-        'Documentos',
-        'Relatórios de Qualidade',
-        'Auditoria & Conformidade',
-      ];
-    } else {
-      list = [
-        'Início',
-        'Pesquisa Avançada',
-        'Documentos',
-        'Projetos',
-        'AI Command Assistant',
-        'Solicitar OI',
-      ];
-    }
-
-    // "Meus documentos" (AKA-63) vale para todo usuário logado: fica logo depois
-    // de "Documentos", mesmo que o perfil vindo do backend ainda não traga o item.
-    if (!list.includes('Meus documentos')) {
-      const docIndex = list.indexOf('Documentos');
-      list.splice(docIndex === -1 ? Math.min(1, list.length) : docIndex + 1, 0, 'Meus documentos');
-    }
-
-    if (podeValidar.value) {
-      if (!list.includes('Validação')) {
-        const docIndex = list.indexOf('Documentos');
-        if (docIndex !== -1) {
-          list.splice(docIndex + 1, 0, 'Validação');
-        } else {
-          list.push('Validação');
-        }
-      }
-    } else {
-      list = list.filter((m) => m !== 'Validação');
-    }
-
-    return list;
-  });
+  const activeUserMenus = computed(() => menusDoUsuario(props.currentUser));
 
   const getMenuIcon = (menuTitle) => {
     switch (menuTitle) {
       case 'Início':
         return Home;
-      case 'Pesquisa Avançada':
-        return Search;
-      case 'Documentos':
-        return FileText;
       case 'Meus documentos':
         return FolderOpen;
       case 'Validação':
         return ShieldCheck;
       case 'Gestão de Usuários':
         return UserCheck;
-      case 'Importar Arquivos':
-        return Upload;
-      case 'Classificar Categorias':
-        return Tag;
-      case 'Projetos':
-        return FolderGit2;
-      case 'Despachos':
-        return Package;
-      case 'Malotes Digitais':
-        return Mail;
-      case 'AI Command Assistant':
-        return Sparkles;
-      case 'Relatórios de Qualidade':
-        return FileText;
-      case 'Auditoria & Conformidade':
-        return ShieldCheck;
-      case 'Solicitar OI':
-        return Plus;
       default:
         return FileText;
     }

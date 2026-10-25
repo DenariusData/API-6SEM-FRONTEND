@@ -9,23 +9,16 @@
   import ValidationQueue from './dashboard/ValidationQueue.vue';
   import MeusDocumentos from './dashboard/MeusDocumentos.vue';
   import UploadDocumento from './UploadDocumento.vue';
+  import { podeValidar as usuarioPodeValidar, temAssistenteIA } from '../utils/menus.js';
   import {
-    Search,
-    FileText,
-    Sparkles,
-    Settings,
     Upload,
-    Plus,
-    ShieldCheck,
     ArrowRight,
     UserCheck,
     UserPlus,
-    Tag,
     CheckCircle2,
     AlertCircle,
     X,
     FileUp,
-    Send,
   } from 'lucide-vue-next';
 
   const props = defineProps({
@@ -38,20 +31,12 @@
         role: 'Engenharia',
         matricula: 'AK-90822',
         cargo: 'Engenheiro Aeroespacial Senior',
-        allowed_menus: [
-          'Início',
-          'Pesquisa Avançada',
-          'Documentos',
-          'Projetos',
-          'AI Command Assistant',
-          'Solicitar OI',
-        ],
+        allowed_menus: ['Início', 'Documentos', 'AI Command Assistant'],
       }),
     },
   });
 
   const activeMenu = ref('Início');
-  const activeTab = ref('AI Command Assistant');
 
   // Modal de Gestão de Usuários (Exclusivo Administrador)
   const showUserModal = ref(false);
@@ -352,13 +337,7 @@
 
   const pendingCount = ref(0);
 
-  const podeValidar = computed(() => {
-    return (
-      props.currentUser?.pode_validar === true ||
-      (!('pode_validar' in (props.currentUser || {})) &&
-        props.currentUser?.role === 'Administrador')
-    );
-  });
+  const podeValidar = computed(() => usuarioPodeValidar(props.currentUser));
 
   const carregarContadorPendentes = async () => {
     if (!podeValidar.value) {
@@ -377,10 +356,7 @@
     () => props.currentUser,
     (user) => {
       carregarContadorPendentes();
-      const hasPermission =
-        user?.pode_validar === true ||
-        (!('pode_validar' in (user || {})) && user?.role === 'Administrador');
-      if (!hasPermission && activeMenu.value === 'Validação') {
+      if (!usuarioPodeValidar(user) && activeMenu.value === 'Validação') {
         activeMenu.value = 'Início';
       }
     },
@@ -392,44 +368,7 @@
     carregarContadorPendentes();
   });
 
-  // Menus padrão para fallback por perfil caso não venha no objeto
-  const activeUserMenus = computed(() => {
-    if (props.currentUser?.allowed_menus && props.currentUser.allowed_menus.length) {
-      return props.currentUser.allowed_menus;
-    }
-    if (props.currentUser?.role === 'Administrador') {
-      return [
-        'Início',
-        'Pesquisa Avançada',
-        'Documentos',
-        'Validação',
-        'Projetos',
-        'Despachos',
-        'Malotes Digitais',
-        'Gestão de Usuários',
-        'Importar Arquivos',
-        'Classificar Categorias',
-        'AI Command Assistant',
-      ];
-    } else if (props.currentUser?.role === 'Qualidade') {
-      return [
-        'Início',
-        'Pesquisa Avançada',
-        'Documentos',
-        'Relatórios de Qualidade',
-        'Auditoria & Conformidade',
-      ];
-    } else {
-      return [
-        'Início',
-        'Pesquisa Avançada',
-        'Documentos',
-        'Projetos',
-        'AI Command Assistant',
-        'Solicitar OI',
-      ];
-    }
-  });
+  const mostrarAssistenteIA = computed(() => temAssistenteIA(props.currentUser));
 </script>
 
 <template>
@@ -494,37 +433,7 @@
 
       <template v-else>
         <!-- Seção AI Command Assistant (Disponível para Engenharia e Administrador) -->
-        <section v-if="activeUserMenus.includes('AI Command Assistant')" class="ai-assistant-card">
-          <!-- Abas da IA -->
-          <div class="ai-tabs">
-            <button
-              type="button"
-              :class="['tab-btn', { active: activeTab === 'AI Command Assistant' }]"
-              @click="activeTab = 'AI Command Assistant'"
-            >
-              <Sparkles :size="16" />
-              <span>AI Command Assistant</span>
-            </button>
-
-            <button
-              type="button"
-              :class="['tab-btn', { active: activeTab === 'Smart Search' }]"
-              @click="activeTab = 'Smart Search'"
-            >
-              <Search :size="16" />
-              <span>Smart Search</span>
-            </button>
-
-            <button
-              type="button"
-              :class="['tab-btn', { active: activeTab === 'Prompt Console' }]"
-              @click="activeTab = 'Prompt Console'"
-            >
-              <Settings :size="16" />
-              <span>Prompt Console</span>
-            </button>
-          </div>
-
+        <section v-if="mostrarAssistenteIA" class="ai-assistant-card">
           <!-- Chat Stream Area (Componente AnswerArea) -->
           <AnswerArea
             ref="answerAreaRef"
@@ -545,8 +454,8 @@
           />
         </section>
 
-        <!-- Ações Rápidas de Operação (Adaptadas por Perfil) -->
-        <section class="quick-actions-section">
+        <!-- Ações Rápidas de Operação (Adaptadas por Perfil; Qualidade ainda não tem ações) -->
+        <section v-if="props.currentUser?.role !== 'Qualidade'" class="quick-actions-section">
           <h3 class="section-label">
             AÇÕES RÁPIDAS DE OPERAÇÃO — {{ props.currentUser?.role?.toUpperCase() || 'ENGENHARIA' }}
           </h3>
@@ -562,39 +471,6 @@
               <Upload :size="18" />
               <span>Importar Arquivos</span>
             </button>
-
-            <button class="action-card">
-              <Tag :size="18" />
-              <span>Classificar Categorias</span>
-            </button>
-
-            <button class="action-card">
-              <ShieldCheck :size="18" />
-              <span>Auditar Logs do Sistema</span>
-            </button>
-          </div>
-
-          <!-- Grid Qualidade -->
-          <div v-else-if="props.currentUser?.role === 'Qualidade'" class="actions-grid">
-            <button class="action-card primary-action">
-              <ShieldCheck :size="18" />
-              <span>Auditoria & Conformidade</span>
-            </button>
-
-            <button class="action-card">
-              <FileText :size="18" />
-              <span>Emitir Relatório de Qualidade</span>
-            </button>
-
-            <button class="action-card">
-              <Send :size="18" />
-              <span>Solicitar Revisão Técnica</span>
-            </button>
-
-            <button class="action-card">
-              <Search :size="18" />
-              <span>Pesquisar Não-Conformidades</span>
-            </button>
           </div>
 
           <!-- Grid Engenharia / Padrão -->
@@ -602,21 +478,6 @@
             <button class="action-card primary-action" @click="openUploadModal">
               <Upload :size="18" />
               <span>Subir Novo Arquivo</span>
-            </button>
-
-            <button class="action-card">
-              <Send :size="18" />
-              <span>Novo Malote de Envio</span>
-            </button>
-
-            <button class="action-card">
-              <Plus :size="18" />
-              <span>Solicitar OI de Carga</span>
-            </button>
-
-            <button class="action-card">
-              <Sparkles :size="18" />
-              <span>Consultar AI Assistant</span>
             </button>
           </div>
         </section>
@@ -885,34 +746,6 @@
     padding: 1.5rem;
     margin-bottom: 2rem;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
-  }
-
-  .ai-tabs {
-    display: flex;
-    gap: 0.5rem;
-    border-bottom: 1px solid #f1f5f9;
-    padding-bottom: 1rem;
-    margin-bottom: 1.25rem;
-  }
-
-  .tab-btn {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    background: none;
-    border: none;
-    padding: 0.5rem 1rem;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #64748b;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .tab-btn.active {
-    background-color: #f3e8ff;
-    color: #7e22ce;
   }
 
   /* Quick Actions */
