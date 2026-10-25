@@ -7,7 +7,13 @@
     aprovar,
     devolver,
   } from '../../services/documentos.js';
-  import { statusValidacao } from '../../utils/statusDocumento.js';
+  import {
+    emPreparo,
+    mensagemErroProcessamento,
+    statusValidacao,
+  } from '../../utils/statusDocumento.js';
+  import { useAtualizacaoAutomatica } from '../../composables/useAtualizacaoAutomatica.js';
+  import EtiquetaProcessamento from './EtiquetaProcessamento.vue';
   import DocumentViewer from '../DocumentViewer.vue';
   import {
     FileText,
@@ -114,6 +120,20 @@
       loadingDetail.value = false;
     }
   };
+
+  // AKA-65: com o detalhe aberto num documento "Preparando para a busca", o
+  // status é consultado de novo sozinho até mudar (ou o detalhe fechar).
+  const detalheEmPreparo = computed(() => showDetailModal.value && emPreparo(currentDetail.value));
+  const { atualizando: atualizandoDetalhe, reiniciar: reiniciarAtualizacao } =
+    useAtualizacaoAutomatica(detalheEmPreparo, async () => {
+      const id = currentDetail.value?.id;
+      const data = await detalhe(id);
+      // Ignora a resposta se o detalhe foi fechado ou trocou de documento.
+      if (data && showDetailModal.value && currentDetail.value?.id === id) {
+        currentDetail.value = { ...currentDetail.value, ...data };
+      }
+    });
+  watch(showDetailModal, (aberto) => aberto && reiniciarAtualizacao());
 
   const handleAprovar = async (doc) => {
     processandoAcao.value = true;
@@ -443,6 +463,26 @@
                 <span :class="['status-badge', getStatusClass(currentDetail.status_validacao)]">
                   {{ formatarStatus(currentDetail.status_validacao) }}
                 </span>
+              </div>
+
+              <div class="detail-field">
+                <label>Busca:</label>
+                <EtiquetaProcessamento
+                  v-if="currentDetail.status_validacao === 'DISPONIVEL'"
+                  :status-validacao="currentDetail.status_validacao"
+                  :status-processamento="currentDetail.status_processamento"
+                  :atualizando="atualizandoDetalhe"
+                />
+                <span v-else class="detail-muted">Após a aprovação</span>
+                <p
+                  v-if="
+                    currentDetail.status_validacao === 'DISPONIVEL' &&
+                    currentDetail.status_processamento === 'ERRO'
+                  "
+                  class="erro-processamento"
+                >
+                  {{ mensagemErroProcessamento(currentDetail.erro_processamento) }}
+                </p>
               </div>
 
               <div class="detail-field">
@@ -1100,6 +1140,25 @@
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+  }
+
+  .detail-field :deep(.proc) {
+    align-self: flex-start;
+  }
+
+  .detail-muted {
+    color: #94a3b8;
+    font-size: 0.85rem;
+  }
+
+  .erro-processamento {
+    margin: 0.35rem 0 0;
+    padding: 0.5rem 0.7rem;
+    border-radius: 7px;
+    background: #fef2f2;
+    color: #991b1b;
+    font-size: 0.78rem;
+    line-height: 1.45;
   }
 
   .detail-field label {

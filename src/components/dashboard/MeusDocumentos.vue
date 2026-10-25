@@ -6,6 +6,11 @@
    * validador em destaque e o botão "Corrigir e reenviar", que abre o
    * formulário de upload em modo edição (AKA-60). O detalhe
    * (GET /api/documents/<id>/) mostra o histórico com data e quem fez.
+   *
+   * Status de processamento para a busca (AKA-65): etiqueta abaixo do estado
+   * na tabela e no detalhe, só para documentos disponíveis. Enquanto houver
+   * documento "Preparando para a busca" na tela, a lista (e o detalhe aberto)
+   * é consultada de novo sozinha, sem piscar a tela (useAtualizacaoAutomatica).
    */
   import { computed, nextTick, onMounted, ref, watch } from 'vue';
   import {
@@ -25,9 +30,13 @@
   import { listarMeus, detalhe } from '../../services/documentos.js';
   import {
     FILTROS_STATUS as FILTROS,
+    emPreparo,
     formatarData,
+    mensagemErroProcessamento,
     statusValidacao,
   } from '../../utils/statusDocumento.js';
+  import { useAtualizacaoAutomatica } from '../../composables/useAtualizacaoAutomatica.js';
+  import EtiquetaProcessamento from './EtiquetaProcessamento.vue';
 
   const emit = defineEmits(['openUploadModal', 'editDocument']);
 
@@ -78,10 +87,14 @@
   // trocados no meio do caminho) é descartada.
   let ultimaCarga = 0;
 
-  async function carregar() {
+  // `silencioso`: consulta automática do status (AKA-65). Não mostra
+  // "Carregando", não trava o Atualizar e, se falhar, mantém a lista na tela.
+  async function carregar({ silencioso = false } = {}) {
     const carga = ++ultimaCarga;
-    carregando.value = true;
-    erro.value = '';
+    if (!silencioso) {
+      carregando.value = true;
+      erro.value = '';
+    }
     try {
       const resp = await listarMeus({ status: filtro.value, page: pagina.value });
       if (carga !== ultimaCarga) return;
@@ -93,15 +106,13 @@
       // A página ficou vazia (ex.: o único item dela foi reenviado): volta para a última válida.
       if (pagina.value > totalPaginas.value) pagina.value = totalPaginas.value;
     } catch (e) {
-      if (carga !== ultimaCarga) return;
+      if (carga !== ultimaCarga || silencioso) return;
       documentos.value = [];
       erro.value = e?.detail || 'Não foi possível carregar os seus documentos.';
     } finally {
       if (carga === ultimaCarga) carregando.value = false;
     }
   }
-
-  const recarregar = () => carregar();
 
   // Um watch só: trocar o filtro estando na página 2+ volta para a página 1 e
   // carrega UMA vez (a mudança de página dispara a carga).
@@ -113,7 +124,7 @@
     carregar();
   });
 
-  onMounted(recarregar);
+  onMounted(() => carregar());
 
   const TEXTOS_VAZIO = {
     '': 'Você ainda não enviou nenhum documento.',
@@ -194,6 +205,32 @@
     return d.comentario_devolucao || devolucoes[devolucoes.length - 1]?.comentario || '';
   });
 
+  /* ---------- Atualização automática do status de processamento (AKA-65) ---------- */
+  const haEmPreparo = computed(
+    () => documentos.value.some(emPreparo) || (detalheAberto.value && emPreparo(docDetalhe.value))
+  );
+
+  async function atualizarEmSegundoPlano() {
+    // Uma carga pedida pelo usuário já está a caminho: não compete com ela.
+    if (!carregando.value) await carregar({ silencioso: true });
+    if (!detalheAberto.value || !emPreparo(docDetalhe.value)) return;
+    const pedido = ultimoDetalhe;
+    const d = await detalhe(docDetalhe.value.id);
+    if (pedido === ultimoDetalhe && detalheAberto.value) docDetalhe.value = d;
+  }
+
+  const {
+    atualizando,
+    esgotou: atualizacaoEsgotada,
+    reiniciar,
+  } = useAtualizacaoAutomatica(haEmPreparo, atualizarEmSegundoPlano);
+
+  // "Atualizar" e "Tentar de novo" também voltam a contar o tempo da atualização automática.
+  const recarregar = () => {
+    reiniciar();
+    return carregar();
+  };
+
   /* ---------- Corrigir e reenviar (abre o modo edição da AKA-60) ---------- */
   const corrigir = (doc) => {
     ultimoDetalhe++;
@@ -247,6 +284,11 @@
       </button>
     </div>
 
+    <p v-if="atualizacaoEsgotada && haEmPreparo" class="aviso-atualizar" role="status">
+      Alguns documentos ainda estão sendo preparados para a busca. Clique em
+      <strong>Atualizar</strong> para ver o status mais recente.
+    </p>
+
     <!-- Estados da lista -->
     <div v-if="carregando && !documentos.length" class="estado-lista">Carregando documentos…</div>
 
@@ -282,9 +324,16 @@
               <td>{{ doc.numero_revisao }}</td>
               <td>{{ formatarData(doc.criado_em) }}</td>
               <td>
-                <span :class="['etiqueta', estado(doc.status_validacao).classe]">
-                  {{ estado(doc.status_validacao).rotulo }}
-                </span>
+                <div class="estados">
+                  <span :class="['etiqueta', estado(doc.status_validacao).classe]">
+                    {{ estado(doc.status_validacao).rotulo }}
+                  </span>
+                  <EtiquetaProcessamento
+                    :status-validacao="doc.status_validacao"
+                    :status-processamento="doc.status_processamento"
+                    :atualizando="atualizando"
+                  />
+                </div>
               </td>
               <td class="col-acoes">
                 <div class="acoes">
@@ -390,7 +439,24 @@
               <span :class="['etiqueta', estado(docDetalhe.status_validacao).classe]">
                 {{ estado(docDetalhe.status_validacao).rotulo }}
               </span>
+              <EtiquetaProcessamento
+                :status-validacao="docDetalhe.status_validacao"
+                :status-processamento="docDetalhe.status_processamento"
+                :atualizando="atualizando"
+              />
             </div>
+            <p
+              v-if="
+                docDetalhe.status_validacao === 'DISPONIVEL' &&
+                docDetalhe.status_processamento === 'ERRO'
+              "
+              class="erro-processamento"
+            >
+              {{ mensagemErroProcessamento(docDetalhe.erro_processamento) }}
+            </p>
+            <p v-else-if="docDetalhe.status_validacao !== 'DISPONIVEL'" class="nota-processamento">
+              A preparação para a busca começa depois que o documento for aprovado.
+            </p>
 
             <div v-if="comentarioDetalhe" class="comentario comentario--bloco">
               <MessageSquare :size="16" />
@@ -634,7 +700,7 @@
     font-size: 0.85rem;
   }
   .tabela th {
-    padding: 0.8rem 1rem;
+    padding: 0.8rem 0.75rem;
     border-bottom: 1px solid var(--borda);
     background: #f8fafc;
     color: var(--suave);
@@ -646,7 +712,7 @@
     white-space: nowrap;
   }
   .tabela td {
-    padding: 0.85rem 0.9rem;
+    padding: 0.85rem 0.75rem;
     border-bottom: 1px solid #f1f5f9;
     vertical-align: middle;
   }
@@ -655,7 +721,7 @@
   }
   .col-titulo {
     font-weight: 600;
-    min-width: 200px;
+    min-width: 170px;
   }
   .mono {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -843,7 +909,40 @@
     padding: 1.25rem 1.5rem;
   }
   .detalhe__estado {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
     margin-bottom: 1rem;
+  }
+  .estados {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.3rem;
+  }
+  .erro-processamento,
+  .nota-processamento {
+    margin: -0.5rem 0 1rem;
+    font-size: 0.78rem;
+    line-height: 1.45;
+  }
+  .erro-processamento {
+    padding: 0.5rem 0.7rem;
+    border-radius: 7px;
+    background: #fef2f2;
+    color: #991b1b;
+  }
+  .nota-processamento {
+    color: var(--suave);
+  }
+  .aviso-atualizar {
+    margin: 0 0 1rem;
+    padding: 0.6rem 0.85rem;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    background: #eff6ff;
+    color: #1e3a8a;
+    font-size: 0.82rem;
   }
   .detalhe__rodape {
     display: flex;
