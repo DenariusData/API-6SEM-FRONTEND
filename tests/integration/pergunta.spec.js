@@ -68,14 +68,20 @@ describe('Pergunta à IA', () => {
   });
 
   it('encerra a sessão quando a API devolve 401', async () => {
+    // o services/api.js trata o 401 em um ponto só: apaga o token e
+    // dispara o evento global "session-expired" no window
+    const onSessionExpired = vi.fn();
+    window.addEventListener('session-expired', onSessionExpired);
     server.use(
       http.post(`${API}/perguntas/`, () =>
         HttpResponse.json({ detail: 'Token expirado.' }, { status: 401 })
       )
     );
 
-    const wrapper = await perguntar('Como marcar a carga?');
+    await perguntar('Como marcar a carga?');
+    window.removeEventListener('session-expired', onSessionExpired);
 
-    expect(wrapper.emitted('sessionExpired')).toHaveLength(1);
+    expect(onSessionExpired).toHaveBeenCalledOnce();
+    expect(localStorage.getItem('akaer_token')).toBeNull();
   });
 });
