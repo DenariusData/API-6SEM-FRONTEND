@@ -30,10 +30,17 @@ npm run build
 
 ## Fluxo de contribuição
 
-1. Crie uma branch a partir de `develop`: `feature/nome-da-tarefa`
-2. Commits e título do PR seguem [Conventional Commits](https://www.conventionalcommits.org), em inglês: `feat:`, `fix:`, `docs:`, `chore:`, `test:`
-3. Abra o PR contra `develop` — exige 1 aprovação, CI verde e título validado
-4. Merge sempre via **Squash and merge**
+1. Instale os hooks uma vez por clone (validam nome da branch, mensagem de commit e lint):
+   ```bash
+   pip install pre-commit
+   pre-commit install --hook-type pre-commit --hook-type commit-msg
+   ```
+2. Crie a branch a partir de `develop` com o código da task do Jira: `<tipo>/AKA-<número>-descricao-curta` (ex.: `feature/AKA-54-ai-question-language-selector`)
+3. Commits em inglês no formato `<tipo>: AKA-<número> <descrição>` (ex.: `feat: AKA-96 integrate question screen with backend questions endpoint`)
+4. Abra o PR contra `develop` com o título no mesmo formato, descrição começando com maiúscula (ex.: `feat: AKA-54 Add language selector to AI Command Assistant`), e preencha o template
+5. Para o merge: CI verde, 1 aprovação e título validado. Merge sempre via **Squash and merge**
+
+Padrão completo (tipos aceitos, exemplos e regras): [Project Guidelines no API-6SEM](https://github.com/DenariusData/API-6SEM#project-guidelines).
 
 ## CI
 
