@@ -2,6 +2,7 @@
   import { ref } from 'vue';
   import AkaLogo from './AkaLogo.vue';
   import { User, Lock, Eye, EyeOff, ShieldCheck, Loader2, AlertCircle } from 'lucide-vue-next';
+  import { login, setToken } from '../services/api.js';
 
   const engineerId = ref('');
   const password = ref('');
@@ -39,38 +40,20 @@
     isLoading.value = true;
 
     try {
-      const response = await fetch('http://localhost:8000/api/auth/login/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: emailInput,
-          password: passInput,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        errorMessage.value = data.detail || UNIFIED_AUTH_ERROR_MSG;
-        isLoading.value = false;
-        return;
-      }
+      const data = await login(emailInput, passInput);
 
       // Guarda o token pra qualquer chamada autenticada futura (ex: painel
       // de gestão de usuários, que exige Authorization: Bearer <token>).
-      localStorage.setItem('akaer_token', data.token);
+      setToken(data.token);
 
       isLoading.value = false;
       successMessage.value = `Autenticação efetuada com sucesso! Bem-vindo(a), ${data.user.name}.`;
       setTimeout(() => {
         emit('loginSuccess', data.user);
       }, 600);
-    } catch {
+    } catch (error) {
       isLoading.value = false;
-      errorMessage.value =
-        'Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.';
+      errorMessage.value = error.detail || error.message || UNIFIED_AUTH_ERROR_MSG;
     }
   };
 </script>
