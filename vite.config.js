@@ -15,9 +15,27 @@ export default defineConfig({
     host: true,
   },
   test: {
-    environment: 'happy-dom',
     coverage: {
       include: ['src/**'],
     },
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'unit',
+          include: ['tests/unit/**/*.spec.js'],
+          environment: 'happy-dom',
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'integration',
+          include: ['tests/integration/**/*.spec.js'],
+          environment: 'jsdom',
+          setupFiles: ['tests/integration/setup.js'],
+        },
+      },
+    ],
   },
 });
