@@ -1,0 +1,45 @@
+name: Deploy na VM
+
+# Publica o front na VM a cada push no develop (inclui o merge de PR).
+# Roda no runner self-hosted instalado na própria VM (label "akavision"),
+# como o usuário "deploy". Nunca roda em pull_request: código de PR de fork
+# não chega na VM.
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+# Um deploy por vez; um push novo espera o anterior terminar.
+concurrency:
+  group: deploy-frontend
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, akavision]
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: /opt/akavision/frontend
+    steps:
+      - name: Atualizar o código
+        run: |
+          git fetch --prune origin
+          git reset --hard "${{ github.sha }}"
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Build
+        # "/" faz o front chamar a API no mesmo endereço do site (/api/...),
+        # que o nginx da VM repassa para o backend.
+        run: |
+          echo "VITE_API_BASE_URL=/" > .env.production.local
+          npm run build
+
+      - name: Publicar no nginx
+        # --delete remove do site os arquivos que saíram do build.
+        run: rsync -a --delete dist/ /var/www/akavision/
+
+      - name: Conferir se o site responde
+        run: curl -fsS -o /dev/null http://127.0.0.1/ && echo "Site no ar."

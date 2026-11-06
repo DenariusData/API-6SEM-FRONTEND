@@ -9,7 +9,8 @@ const preencher = async (wrapper, email, senha) => {
   await flushPromises();
 };
 
-const respostaFetch = (ok, corpo) => ({ ok, json: () => Promise.resolve(corpo) });
+// Response de verdade: o services/api.js lê status e json(), não só ok
+const respostaFetch = (status, corpo) => new Response(JSON.stringify(corpo), { status });
 
 describe('LoginView', () => {
   let fetchMock;
@@ -52,7 +53,7 @@ describe('LoginView', () => {
   });
 
   it('envia o e-mail normalizado para a API', async () => {
-    fetchMock.mockResolvedValue(respostaFetch(false, {}));
+    fetchMock.mockResolvedValue(respostaFetch(401, {}));
     const wrapper = mount(LoginView);
 
     await preencher(wrapper, '  ENG@Akaer.com.br ', 'eng123');
@@ -62,7 +63,7 @@ describe('LoginView', () => {
   });
 
   it('mostra a mensagem do servidor quando o login falha', async () => {
-    fetchMock.mockResolvedValue(respostaFetch(false, { detail: 'Usuário bloqueado.' }));
+    fetchMock.mockResolvedValue(respostaFetch(401, { detail: 'Usuário bloqueado.' }));
     const wrapper = mount(LoginView);
 
     await preencher(wrapper, 'eng@akaer.com.br', 'errada');
