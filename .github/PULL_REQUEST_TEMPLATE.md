@@ -5,11 +5,13 @@
 ## Issue/Tarefa relacionada
 
 <!-- Link do Jira / número da issue -->
+
 Jira:
 
 ## Requisito relacionado
 
 <!-- Preenchido automaticamente pela Action a partir dos labels RF/RNF/D do card no Jira. Se vier vazio, o card ainda não tem label — edite aqui manualmente com o código da Matriz de Rastreabilidade. -->
+
 Requisito: _(preenchido automaticamente)_
 
 ## Tipo de mudança
@@ -24,6 +26,7 @@ Requisito: _(preenchido automaticamente)_
 ## Como testar
 
 <!-- Passo a passo para quem for revisar conseguir validar -->
+
 1.
 2.
 
