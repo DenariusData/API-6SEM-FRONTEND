@@ -2,6 +2,7 @@
   import { computed } from 'vue';
   import logoUrl from '@/assets/logo.png';
   import { menusDoUsuario } from '@/utils/menus.js';
+  import ExportarDados from './ExportarDados.vue';
   import { Home, FileText, ShieldCheck, UserCheck, FolderOpen } from 'lucide-vue-next';
 
   const props = defineProps({
@@ -81,6 +82,7 @@
       <span class="cred-tag"> PERFIL {{ currentUser?.role?.toUpperCase() || 'OPERACIONAL' }} </span>
       <h4 class="cred-level">Nível — {{ currentUser?.role || 'Engenharia' }}</h4>
       <p class="cred-info">Credencial {{ currentUser?.matricula || 'AK-90822' }} verificada.</p>
+      <ExportarDados />
     </div>
   </aside>
 </template>
