@@ -236,6 +236,28 @@ export async function login(email, password) {
   });
 }
 
+// Meus dados (AKA-56 / backend AKA-57): nome e e-mail do próprio usuário.
+// A identidade vem do token; papel e demais campos não são editáveis aqui.
+export const meusDados = () => apiFetch('/api/auth/me/');
+
+/** PATCH só com o que mudou: { nome?, email? }. Trocar o e-mail só cria um e-mail pendente. */
+export const atualizarMeusDados = (campos) =>
+  apiFetch('/api/auth/me/', { method: 'PATCH', body: campos });
+
+export const reenviarConfirmacaoEmail = () =>
+  apiFetch('/api/auth/reenviar-confirmacao/', { method: 'POST' });
+
+/**
+ * Página /confirmar-email: o token do link é a credencial (o backend não pede
+ * login), e um 401 aqui não deve derrubar a sessão de quem estiver logado.
+ */
+export const confirmarEmail = (token) =>
+  apiFetch('/api/auth/confirmar-email/', {
+    method: 'POST',
+    body: { token },
+    skipAuthRedirect: true,
+  });
+
 export async function createUser(userData) {
   return apiFetch('/api/auth/users/', {
     method: 'POST',
@@ -304,6 +326,10 @@ export default {
   removeToken,
   notifySessionExpired,
   login,
+  meusDados,
+  atualizarMeusDados,
+  reenviarConfirmacaoEmail,
+  confirmarEmail,
   createUser,
   exportarMeusDados,
   uploadDocument,

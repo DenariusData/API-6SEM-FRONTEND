@@ -1,5 +1,5 @@
 <script setup>
-  import { ref, computed, nextTick, onMounted, watch } from 'vue';
+  import { ref, computed, nextTick, onMounted, onBeforeUnmount, watch } from 'vue';
   import { createUser, askQuestion } from '../services/api.js';
   import { listarMeus, listarPendentes } from '../services/documentos.js';
   import SidebarMenu from './dashboard/SidebarMenu.vue';
@@ -8,6 +8,7 @@
   import DocumentsManager from './dashboard/DocumentsManager.vue';
   import ValidationQueue from './dashboard/ValidationQueue.vue';
   import MeusDocumentos from './dashboard/MeusDocumentos.vue';
+  import MeusDados from './dashboard/MeusDados.vue';
   import UploadDocumento from './UploadDocumento.vue';
   import { podeValidar as usuarioPodeValidar, temAssistenteIA } from '../utils/menus.js';
   import {
@@ -19,6 +20,8 @@
     AlertCircle,
     X,
     FileUp,
+    ChevronDown,
+    UserCog,
   } from 'lucide-vue-next';
 
   const props = defineProps({
@@ -36,7 +39,34 @@
     },
   });
 
+  // Meus dados (AKA-56) avisa quando o nome/e-mail mudam; o App atualiza o usuário logado.
+  const emit = defineEmits(['userUpdated']);
+
   const activeMenu = ref('Início');
+
+  /* ---------- Menu do usuário (topo) — AKA-56 ---------- */
+  const menuUsuarioAberto = ref(false);
+  const menuUsuarioRef = ref(null);
+
+  const fecharMenuUsuario = () => {
+    menuUsuarioAberto.value = false;
+  };
+
+  const abrirMeusDados = () => {
+    fecharMenuUsuario();
+    activeMenu.value = 'Meus dados';
+  };
+
+  // Teclado: ao abrir, o foco vai para o primeiro item do menu.
+  watch(menuUsuarioAberto, (aberto) => {
+    if (aberto) nextTick(() => menuUsuarioRef.value?.querySelector('[role="menuitem"]')?.focus());
+  });
+
+  const cliqueFora = (e) => {
+    if (menuUsuarioAberto.value && !menuUsuarioRef.value?.contains(e.target)) {
+      fecharMenuUsuario();
+    }
+  };
 
   // Modal de Gestão de Usuários (Exclusivo Administrador)
   const showUserModal = ref(false);
@@ -366,7 +396,10 @@
   onMounted(() => {
     carregarDocumentosRecentes();
     carregarContadorPendentes();
+    document.addEventListener('click', cliqueFora);
   });
+
+  onBeforeUnmount(() => document.removeEventListener('click', cliqueFora));
 
   const mostrarAssistenteIA = computed(() => temAssistenteIA(props.currentUser));
 </script>
@@ -394,15 +427,37 @@
           </p>
         </div>
 
-        <div class="user-profile-badge">
-          <div class="user-info">
-            <span class="user-name">{{ props.currentUser?.name || 'Carlos Eduardo' }}</span>
-            <span class="user-matricula"
-              >Matrícula {{ props.currentUser?.matricula || 'AK-90822' }}</span
+        <div ref="menuUsuarioRef" class="user-menu" @keydown.esc="fecharMenuUsuario">
+          <button
+            type="button"
+            class="user-profile-badge"
+            aria-haspopup="menu"
+            :aria-expanded="menuUsuarioAberto"
+            aria-controls="menu-usuario"
+            @click="menuUsuarioAberto = !menuUsuarioAberto"
+          >
+            <div class="user-info">
+              <span class="user-name">{{ props.currentUser?.name || 'Carlos Eduardo' }}</span>
+              <span class="user-matricula"
+                >Matrícula {{ props.currentUser?.matricula || 'AK-90822' }}</span
+              >
+            </div>
+            <div class="user-avatar">
+              <UserCheck :size="20" class="avatar-icon" />
+            </div>
+            <ChevronDown :size="16" :class="['user-chevron', { aberto: menuUsuarioAberto }]" />
+          </button>
+
+          <div v-if="menuUsuarioAberto" id="menu-usuario" class="user-dropdown" role="menu">
+            <button
+              type="button"
+              class="user-dropdown-item"
+              role="menuitem"
+              @click="abrirMeusDados"
             >
-          </div>
-          <div class="user-avatar">
-            <UserCheck :size="20" class="avatar-icon" />
+              <UserCog :size="16" />
+              <span>Meus dados</span>
+            </button>
           </div>
         </div>
       </header>
@@ -421,6 +476,13 @@
         ref="meusDocumentosRef"
         @open-upload-modal="openUploadModal"
         @edit-document="openEditModal"
+      />
+
+      <!-- Meus dados: nome e e-mail do próprio usuário (AKA-56) -->
+      <MeusDados
+        v-else-if="activeMenu === 'Meus dados'"
+        :current-user="props.currentUser"
+        @atualizado="(user) => emit('userUpdated', user)"
       />
 
       <DocumentsManager
@@ -699,6 +761,10 @@
     margin: 0;
   }
 
+  .user-menu {
+    position: relative;
+  }
+
   .user-profile-badge {
     display: flex;
     align-items: center;
@@ -708,6 +774,63 @@
     border-radius: 10px;
     border: 1px solid #e2e8f0;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .user-profile-badge:hover {
+    border-color: #cbd5e1;
+  }
+
+  .user-profile-badge:focus-visible {
+    outline: 2px solid #7e22ce;
+    outline-offset: 2px;
+  }
+
+  .user-chevron {
+    color: #64748b;
+    transition: transform 0.15s;
+  }
+
+  .user-chevron.aberto {
+    transform: rotate(180deg);
+  }
+
+  .user-dropdown {
+    position: absolute;
+    top: calc(100% + 0.4rem);
+    right: 0;
+    z-index: 50;
+    min-width: 180px;
+    padding: 0.35rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #ffffff;
+    box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.15);
+  }
+
+  .user-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    width: 100%;
+    padding: 0.55rem 0.7rem;
+    border: 0;
+    border-radius: 7px;
+    background: none;
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #334155;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .user-dropdown-item:hover,
+  .user-dropdown-item:focus-visible {
+    background: #f5f3ff;
+    color: #7e22ce;
+    outline: none;
   }
 
   .user-info {
