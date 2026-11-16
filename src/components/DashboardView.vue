@@ -9,8 +9,13 @@
   import ValidationQueue from './dashboard/ValidationQueue.vue';
   import MeusDocumentos from './dashboard/MeusDocumentos.vue';
   import MeusDados from './dashboard/MeusDados.vue';
+  import LogAuditoria from './dashboard/LogAuditoria.vue';
   import UploadDocumento from './UploadDocumento.vue';
-  import { podeValidar as usuarioPodeValidar, temAssistenteIA } from '../utils/menus.js';
+  import {
+    ehAdministrador,
+    podeValidar as usuarioPodeValidar,
+    temAssistenteIA,
+  } from '../utils/menus.js';
   import {
     Upload,
     ArrowRight,
@@ -437,6 +442,9 @@
       if (!usuarioPodeValidar(user) && activeMenu.value === 'Validação') {
         activeMenu.value = 'Início';
       }
+      if (!ehAdministrador(user) && activeMenu.value === 'Auditoria') {
+        activeMenu.value = 'Início';
+      }
     },
     { deep: true }
   );
@@ -532,6 +540,9 @@
         :current-user="props.currentUser"
         @atualizado="(user) => emit('userUpdated', user)"
       />
+
+      <!-- Consulta do log de auditoria, só ADMINISTRADOR (AKA-81) -->
+      <LogAuditoria v-else-if="activeMenu === 'Auditoria' && ehAdministrador(props.currentUser)" />
 
       <DocumentsManager
         v-else-if="activeMenu === 'Documentos'"
