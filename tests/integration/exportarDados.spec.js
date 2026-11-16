@@ -89,6 +89,43 @@ describe('Exportar meus dados (AKA-75)', () => {
     expect(aviso.attributes('role')).toBe('alert');
   });
 
+  it('no limite do dia (429) mostra a mensagem do servidor, sem contar segundos', async () => {
+    server.use(
+      http.get(URL_EXPORTAR, () =>
+        HttpResponse.json(
+          {
+            detail: 'Você atingiu o limite de 5 exportações por dia. Tente novamente amanhã.',
+          },
+          { status: 429, headers: { 'Retry-After': '49801' } }
+        )
+      )
+    );
+
+    const wrapper = mount(ExportarDados);
+    await clicar(wrapper, 'json');
+
+    expect(baixados).toEqual([]);
+    expect(wrapper.find('.exportar-erro').text()).toBe(
+      'Você atingiu o limite de 5 exportações por dia. Tente novamente amanhã.'
+    );
+  });
+
+  it('sem mensagem do servidor, um 429 longo não vira "Aguarde 49801 segundos"', async () => {
+    server.use(
+      http.get(
+        URL_EXPORTAR,
+        () => new HttpResponse(null, { status: 429, headers: { 'Retry-After': '49801' } })
+      )
+    );
+
+    const wrapper = mount(ExportarDados);
+    await clicar(wrapper, 'pdf');
+
+    expect(wrapper.find('.exportar-erro').text()).toBe(
+      'Você atingiu o limite de exportações. Tente novamente mais tarde.'
+    );
+  });
+
   it('mostra o erro do servidor e libera os botões de novo', async () => {
     server.use(
       http.get(URL_EXPORTAR, () =>
