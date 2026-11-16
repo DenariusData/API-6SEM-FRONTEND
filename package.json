@@ -11,7 +11,8 @@
     "lint:fix": "eslint . --fix",
     "test:unit": "vitest run --project unit",
     "test:coverage": "vitest run --coverage",
-    "test:integration": "vitest run --project integration"
+    "test:integration": "vitest run --project integration",
+    "test:unit:ci": "vitest run --project unit --coverage --coverage.reporter=lcov --coverage.reporter=text-summary --reporter=default --reporter=vitest-sonar-reporter --outputFile.vitest-sonar-reporter=test-report.xml"
   },
   "dependencies": {
     "lucide-vue-next": "^0.469.0",
@@ -31,6 +32,7 @@
     "msw": "^3.0.4",
     "prettier": "^3.9.8",
     "vite": "^6.0.7",
-    "vitest": "^5.1.0"
+    "vitest": "^5.1.0",
+    "vitest-sonar-reporter": "^3.0.0"
   }
 }
