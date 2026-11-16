@@ -24,7 +24,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci --ignore-scripts
 
       - name: Install pre-commit
         run: pip install pre-commit
@@ -45,7 +45,7 @@ jobs:
           node-version: '22'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci --ignore-scripts
 
       - name: Build
         run: npm run build
@@ -63,7 +63,7 @@ jobs:
           node-version: '22'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci --ignore-scripts
 
       - name: Run unit tests
         run: npm run test:unit
@@ -81,7 +81,7 @@ jobs:
           node-version: '22'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci --ignore-scripts
 
       - name: Run integration tests
         run: npm run test:integration
@@ -108,7 +108,7 @@ jobs:
           node-version: '22'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci --ignore-scripts
 
       # Gera coverage/lcov.info e test-report.xml com as duas suítes
       - name: Run all tests with coverage
