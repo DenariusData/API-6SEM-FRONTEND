@@ -1,6 +1,6 @@
 <script setup>
   import { ref, nextTick } from 'vue';
-  import { Sparkles, BookOpen, Loader2, Eye } from 'lucide-vue-next';
+  import { Sparkles, BookOpen, Loader2, Eye, FileText, TriangleAlert } from 'lucide-vue-next';
   import DocumentViewer from '../DocumentViewer.vue';
 
   defineProps({
@@ -24,6 +24,15 @@
         defaultPage: '—',
         similarity: 'Similaridade',
         viewDocument: 'Ver documento',
+        viewExcerpt: 'Ver trecho no documento',
+        goToExcerpt: 'Ir para o trecho extraído',
+        section: 'Seção',
+        extractedTitle: 'Extraído do documento',
+        extractedHint: 'Texto literal dos documentos, sem alteração.',
+        interpretationTitle: 'Interpretação da IA',
+        aiWarning:
+          'Esta interpretação foi gerada por IA a partir dos trechos acima e não é uma determinação oficial da empresa. Em caso de dúvida, consulte o documento original.',
+        notCited: 'Não citado',
         close: 'Fechar',
         processingMessage: 'Consultando documentos técnicos...',
       }),
@@ -41,6 +50,21 @@
 
   const fecharFonte = () => {
     fonteAberta.value = null;
+  };
+
+  // Link da fonte para o trecho (AKA-71): PDF público abre na página do trecho
+  const linkPublico = (src) =>
+    src?.publicUrl ? `${src.publicUrl}#page=${src.pageStart || 1}` : null;
+
+  // Âncora do trecho extraído dentro da resposta (única por mensagem)
+  const idTrecho = (msgIndex, numero) => `trecho-${msgIndex}-${numero}`;
+
+  const irParaTrecho = (msgIndex, numero) => {
+    const alvo = containerRef.value?.querySelector(`#${idTrecho(msgIndex, numero)}`);
+    if (!alvo) return;
+    alvo.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+    alvo.classList.add('excerpt-highlight');
+    setTimeout(() => alvo.classList.remove('excerpt-highlight'), 1600);
   };
 
   const scrollToBottom = () => {
@@ -75,7 +99,60 @@
             {{ msg.language === 'en' ? currentAiTexts.english : currentAiTexts.portuguese }}
           </div>
 
-          <p class="ai-text">
+          <template v-if="msg.excerpts && msg.excerpts.length">
+            <!-- Bloco 1: trecho literal do documento (AKA-25) -->
+            <section class="answer-block extracted-block" data-test="bloco-extraido">
+              <header class="answer-block-header">
+                <FileText :size="14" />
+                <span>{{ currentAiTexts.extractedTitle }}</span>
+              </header>
+              <p class="answer-block-hint">{{ currentAiTexts.extractedHint }}</p>
+
+              <article
+                v-for="exc in msg.excerpts"
+                :id="idTrecho(index, exc.number)"
+                :key="exc.number"
+                :class="['excerpt-item', { 'excerpt-not-cited': !exc.cited }]"
+              >
+                <div class="excerpt-meta">
+                  <span class="excerpt-number">[{{ exc.number }}]</span>
+                  <strong>{{ exc.code }}</strong>
+                  <span class="source-meta-dot">•</span>
+                  <span>{{ currentAiTexts.revision }}: {{ exc.revision }}</span>
+                  <span class="source-meta-dot">•</span>
+                  <span
+                    >{{ currentAiTexts.page }}: {{ exc.page || currentAiTexts.defaultPage }}</span
+                  >
+                  <template v-if="exc.section">
+                    <span class="source-meta-dot">•</span>
+                    <span>{{ currentAiTexts.section }}: {{ exc.section }}</span>
+                  </template>
+                  <span v-if="!exc.cited" class="excerpt-not-cited-tag">
+                    {{ currentAiTexts.notCited }}
+                  </span>
+                </div>
+                <!-- Texto exatamente como veio da API: sem trim, resumo ou reescrita -->
+                <blockquote class="excerpt-text" data-test="trecho-literal">
+                  {{ exc.text }}
+                </blockquote>
+              </article>
+            </section>
+
+            <!-- Bloco 2: interpretação da IA, com aviso (AKA-25) -->
+            <section class="answer-block interpretation-block" data-test="bloco-interpretacao">
+              <header class="answer-block-header">
+                <Sparkles :size="14" />
+                <span>{{ currentAiTexts.interpretationTitle }}</span>
+              </header>
+              <div class="ai-warning" role="note" data-test="aviso-ia">
+                <TriangleAlert :size="15" class="ai-warning-icon" />
+                <span>{{ currentAiTexts.aiWarning }}</span>
+              </div>
+              <p class="ai-text">{{ msg.text }}</p>
+            </section>
+          </template>
+
+          <p v-else class="ai-text">
             {{ msg.text }}
           </p>
 
@@ -92,6 +169,15 @@
             <div class="sources-grid">
               <div v-for="(src, sIdx) in msg.sources" :key="sIdx" class="source-card">
                 <div class="source-card-header">
+                  <button
+                    v-if="src.number && msg.excerpts && msg.excerpts.length"
+                    type="button"
+                    class="source-number-link"
+                    :title="currentAiTexts.goToExcerpt"
+                    @click="irParaTrecho(index, src.number)"
+                  >
+                    [{{ src.number }}]
+                  </button>
                   <span class="source-category-tag">
                     {{ src.category || currentAiTexts.defaultCategory }}
                   </span>
@@ -120,6 +206,10 @@
                     </span>
                   </template>
                 </div>
+                <div v-if="src.section" class="source-section">
+                  <strong>{{ currentAiTexts.section }}:</strong> {{ src.section }}
+                </div>
+                <!-- Link para o trecho (AKA-71): abre o documento na página do trecho -->
                 <button
                   v-if="src.documentId"
                   type="button"
@@ -127,8 +217,18 @@
                   @click="abrirFonte(src)"
                 >
                   <Eye :size="13" />
-                  <span>{{ currentAiTexts.viewDocument }}</span>
+                  <span>{{ currentAiTexts.viewExcerpt }}</span>
                 </button>
+                <a
+                  v-else-if="linkPublico(src)"
+                  class="btn-view-source"
+                  :href="linkPublico(src)"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Eye :size="13" />
+                  <span>{{ currentAiTexts.viewExcerpt }}</span>
+                </a>
               </div>
             </div>
           </div>
@@ -194,7 +294,7 @@
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    max-height: 260px;
+    max-height: 520px;
     overflow-y: auto;
     margin-bottom: 1.25rem;
     padding-right: 0.5rem;
@@ -262,6 +362,153 @@
     margin-bottom: 0.35rem;
     text-transform: uppercase;
     letter-spacing: 0.03em;
+  }
+
+  /* Blocos separados da resposta (AKA-25) */
+  .answer-block {
+    border-radius: 10px;
+    padding: 0.75rem 0.9rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .extracted-block {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+  }
+
+  .interpretation-block {
+    background: #faf5ff;
+    border: 1px solid #e9d5ff;
+  }
+
+  .answer-block-header {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.35rem;
+  }
+
+  .interpretation-block .answer-block-header {
+    color: #7e22ce;
+  }
+
+  .answer-block-hint {
+    font-size: 0.72rem;
+    color: #64748b;
+    margin: 0 0 0.6rem 0;
+  }
+
+  .excerpt-item {
+    border-radius: 8px;
+    transition: box-shadow 0.3s ease;
+  }
+
+  .excerpt-item + .excerpt-item {
+    margin-top: 0.65rem;
+  }
+
+  .excerpt-highlight {
+    box-shadow: 0 0 0 2px #c084fc;
+  }
+
+  .excerpt-not-cited {
+    opacity: 0.75;
+  }
+
+  .excerpt-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.72rem;
+    color: #475569;
+    margin-bottom: 0.3rem;
+  }
+
+  .excerpt-meta strong {
+    color: #0f172a;
+  }
+
+  .excerpt-number {
+    font-weight: 700;
+    color: #7e22ce;
+  }
+
+  .excerpt-not-cited-tag {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: #64748b;
+    background: #e2e8f0;
+    padding: 0.05rem 0.4rem;
+    border-radius: 4px;
+  }
+
+  .excerpt-text {
+    margin: 0;
+    padding: 0.55rem 0.75rem;
+    background: #ffffff;
+    border-left: 3px solid #94a3b8;
+    border-radius: 0 6px 6px 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.78rem;
+    line-height: 1.5;
+    color: #1e293b;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 220px;
+    overflow-y: auto;
+  }
+
+  .ai-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    color: #92400e;
+    font-size: 0.76rem;
+    line-height: 1.4;
+    padding: 0.5rem 0.65rem;
+    border-radius: 8px;
+    margin-bottom: 0.6rem;
+  }
+
+  .ai-warning-icon {
+    flex-shrink: 0;
+    margin-top: 0.05rem;
+  }
+
+  .interpretation-block .ai-text {
+    margin: 0;
+  }
+
+  .source-number-link {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #7e22ce;
+    cursor: pointer;
+  }
+
+  .source-number-link:hover {
+    text-decoration: underline;
+  }
+
+  .source-section {
+    font-size: 0.72rem;
+    color: #475569;
+    margin-top: 0.35rem;
+  }
+
+  .source-section strong {
+    color: #1e293b;
   }
 
   .ai-text {
@@ -362,6 +609,10 @@
     font-weight: 600;
     cursor: pointer;
     transition: background 0.15s ease;
+  }
+
+  a.btn-view-source {
+    text-decoration: none;
   }
 
   .btn-view-source:hover {
