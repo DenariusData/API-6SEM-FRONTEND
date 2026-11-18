@@ -34,11 +34,16 @@
     setTimeout(() => URL.revokeObjectURL(url), 0);
   };
 
+  // 429 tem dois casos (AKA-76): 1 por minuto ("Aguarde N segundos…") e 5 por
+  // dia ("Você atingiu o limite…", com Retry-After até a meia-noite). A
+  // mensagem do servidor já diz o que fazer em cada um; o texto montado aqui
+  // é só a reserva quando ela não vier.
   const textoDoErro = (e) => {
     if (e?.status === 429) {
-      return e.retryAfter
+      if (e.detail && e.detail !== `Erro HTTP ${e.status}`) return e.detail;
+      return e.retryAfter && e.retryAfter <= 60
         ? `Aguarde ${e.retryAfter} segundos para exportar novamente.`
-        : e.detail || 'Aguarde um minuto para exportar novamente.';
+        : 'Você atingiu o limite de exportações. Tente novamente mais tarde.';
     }
     if (e?.status === 401) return 'Sua sessão expirou. Entre novamente.';
     return e?.detail || 'Não foi possível exportar seus dados. Tente novamente.';
