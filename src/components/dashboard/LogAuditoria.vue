@@ -86,21 +86,23 @@
     }
   }
 
-  function aplicar() {
+  async function aplicar() {
     erroFiltro.value = '';
     if (formulario.de && formulario.ate && formulario.ate < formulario.de) {
       erroFiltro.value = 'A data final não pode ser anterior à inicial.';
       return;
     }
     aplicados.value = { ...formulario };
-    if (pagina.value !== 1)
+    if (pagina.value !== 1) {
       pagina.value = 1; // o watch recarrega
-    else carregar();
+      return;
+    }
+    await carregar();
   }
 
   function limpar() {
     Object.assign(formulario, FILTROS_VAZIOS);
-    aplicar();
+    return aplicar();
   }
 
   watch(pagina, carregar);
@@ -132,13 +134,16 @@
     }
   }
 
-  onMounted(async () => {
-    carregar();
+  async function carregarUsuarios() {
     try {
       usuarios.value = await listarUsuariosParaFiltro();
     } catch {
       usuarios.value = []; // o filtro de usuário fica só com "Todos"
     }
+  }
+
+  onMounted(async () => {
+    await Promise.all([carregar(), carregarUsuarios()]);
   });
 </script>
 
@@ -211,7 +216,7 @@
     </form>
 
     <p v-if="erroFiltro" class="aviso aviso--erro" role="alert">{{ erroFiltro }}</p>
-    <p v-if="mensagemExportacao" class="aviso" role="status">{{ mensagemExportacao }}</p>
+    <output v-if="mensagemExportacao" class="aviso">{{ mensagemExportacao }}</output>
 
     <div v-if="carregando && !registros.length" class="estado-lista">Carregando log…</div>
 
@@ -327,7 +332,10 @@
     font-size: 0.82rem;
     font-weight: 700;
     cursor: pointer;
-    transition: all 0.15s;
+    transition:
+      background-color 0.15s,
+      border-color 0.15s,
+      color 0.15s;
   }
   .btn:disabled {
     opacity: 0.6;
@@ -406,6 +414,7 @@
   }
 
   .aviso {
+    display: block;
     margin: 0;
     font-size: 0.85rem;
     color: var(--suave);
