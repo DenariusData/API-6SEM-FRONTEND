@@ -16,6 +16,7 @@ export const MENUS_IMPLEMENTADOS = [
   'Meus documentos',
   'Validação',
   'Gestão de Usuários',
+  'Auditoria',
 ];
 
 /** Fallback quando o perfil não traz `allowed_menus`. */
@@ -23,6 +24,10 @@ const menusPadraoPorPerfil = (role) =>
   role === 'Administrador'
     ? ['Início', 'Documentos', 'Gestão de Usuários']
     : ['Início', 'Documentos'];
+
+/** Papel ADMINISTRADOR (o perfil traz o código em `role_code` e o nome em `role`). */
+export const ehAdministrador = (user) =>
+  user?.role_code === 'ADMINISTRADOR' || user?.role === 'Administrador';
 
 export const podeValidar = (user) =>
   user?.pode_validar === true ||
@@ -61,6 +66,10 @@ export const menusDoUsuario = (user) => {
   } else {
     list = list.filter((m) => m !== 'Validação');
   }
+
+  // Consulta do log de auditoria (AKA-81): só ADMINISTRADOR, sempre no fim.
+  list = list.filter((m) => m !== 'Auditoria');
+  if (ehAdministrador(user)) list.push('Auditoria');
 
   return list.filter((m) => MENUS_IMPLEMENTADOS.includes(m));
 };
