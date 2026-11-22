@@ -1,8 +1,9 @@
 name: Deploy na VM
 
 # Publica o front na VM a cada push no develop (inclui o merge de PR).
-# Roda no runner self-hosted instalado na própria VM (label "akavision"),
-# como o usuário "deploy". Nunca roda em pull_request: código de PR de fork
+# Roda no runner self-hosted da VM do front (label "akavision-front"), como
+# o usuário "deploy". O back e a IA ficam em outras VMs (deploy/README.md no
+# repositório do back). Nunca roda em pull_request: código de PR de fork
 # não chega na VM.
 on:
   push:
@@ -16,7 +17,7 @@ concurrency:
 
 jobs:
   deploy:
-    runs-on: [self-hosted, akavision]
+    runs-on: [self-hosted, akavision-front]
     timeout-minutes: 15
     defaults:
       run:
