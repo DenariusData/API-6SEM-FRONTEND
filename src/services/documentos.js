@@ -70,6 +70,18 @@ export async function listarMeus(params) {
 }
 
 /**
+ * Lista o acervo que o usuário pode consultar (AKA-108): documentos
+ * disponíveis nas áreas e até o nível de sigilo em que ele tem permissão.
+ *
+ * @param {object|string} [params] - Parâmetros como { busca: 'trem', page: 1 }
+ * @returns {Promise<object>} Lista paginada ({ count, page, page_size, total_pages, results })
+ */
+export async function listarAcervo(params) {
+  const qs = toQueryString(params);
+  return apiFetch(`/api/documents/disponiveis/${qs}`);
+}
+
+/**
  * Obtém os detalhes completos de um documento técnico, incluindo metadados,
  * histórico de validação e parecer de devolução (se houver).
  *

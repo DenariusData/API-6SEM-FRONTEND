@@ -3,6 +3,7 @@
   import {
     listarPendentes,
     listarMeus,
+    listarAcervo,
     detalhe,
     aprovar,
     devolver,
@@ -26,6 +27,8 @@
     ShieldCheck,
     AlertTriangle,
     Upload,
+    Library,
+    Search,
   } from 'lucide-vue-next';
 
   const props = defineProps({
@@ -49,9 +52,11 @@
         props.currentUser?.role === 'Administrador')
   );
 
-  // Abas: 'meus' (Meus Documentos) | 'pendentes' (Fila de Validação)
-  const activeTab = ref(podeValidar.value ? 'pendentes' : 'meus');
+  // Abas: 'acervo' (documentos disponíveis, AKA-108) | 'meus' (Meus Documentos)
+  // | 'pendentes' (Fila de Validação)
+  const activeTab = ref(podeValidar.value ? 'pendentes' : 'acervo');
   const statusFilter = ref('');
+  const buscaAcervo = ref('');
   const loading = ref(false);
   const feedbackMessage = ref('');
   const feedbackType = ref('success'); // 'success' | 'error'
@@ -76,7 +81,14 @@
     feedbackMessage.value = '';
 
     try {
-      if (activeTab.value === 'pendentes') {
+      if (activeTab.value === 'acervo') {
+        const params = { page: 1 };
+        if (buscaAcervo.value.trim()) {
+          params.busca = buscaAcervo.value.trim();
+        }
+        const data = await listarAcervo(params);
+        items.value = data?.results ?? (Array.isArray(data) ? data : []);
+      } else if (activeTab.value === 'pendentes') {
         const data = await listarPendentes({ page: 1 });
         const docs = data?.results ?? (Array.isArray(data) ? data : []);
         items.value = docs;
@@ -217,6 +229,13 @@
     carregarDocumentos();
   });
 
+  // Busca no acervo: espera a pessoa parar de digitar antes de consultar.
+  let esperaBusca = null;
+  watch(buscaAcervo, () => {
+    clearTimeout(esperaBusca);
+    esperaBusca = setTimeout(carregarDocumentos, 400);
+  });
+
   onMounted(() => {
     carregarDocumentos();
   });
@@ -289,12 +308,35 @@
 
         <button
           type="button"
+          :class="['manager-tab-btn', { active: activeTab === 'acervo' }]"
+          @click="activeTab = 'acervo'"
+        >
+          <Library :size="16" />
+          <span>Acervo</span>
+        </button>
+
+        <button
+          type="button"
           :class="['manager-tab-btn', { active: activeTab === 'meus' }]"
           @click="activeTab = 'meus'"
         >
           <FileText :size="16" />
           <span>Meus Documentos</span>
         </button>
+      </div>
+
+      <!-- Busca no Acervo -->
+      <div v-if="activeTab === 'acervo'" class="filter-group">
+        <label class="busca-acervo">
+          <Search :size="14" />
+          <input
+            v-model="buscaAcervo"
+            type="search"
+            class="filter-select"
+            placeholder="Buscar por título ou código"
+            aria-label="Buscar no acervo por título ou código"
+          />
+        </label>
       </div>
 
       <!-- Filtro de Status para Meus Documentos -->
@@ -322,7 +364,9 @@
           {{
             activeTab === 'pendentes'
               ? 'Não há documentos pendentes de validação no momento.'
-              : 'Você ainda não possui documentos enviados com estes filtros.'
+              : activeTab === 'acervo'
+                ? 'Nenhum documento disponível para o seu acesso com esta busca.'
+                : 'Você ainda não possui documentos enviados com estes filtros.'
           }}
         </p>
       </div>
@@ -1371,5 +1415,12 @@
       opacity: 1;
       transform: translateY(0);
     }
+  }
+
+  .busca-acervo {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: #64748b;
   }
 </style>
