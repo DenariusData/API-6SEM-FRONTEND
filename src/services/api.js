@@ -258,6 +258,21 @@ export const confirmarEmail = (token) =>
     skipAuthRedirect: true,
   });
 
+/** Lista os usuários (só administrador). */
+export async function listUsers() {
+  return apiFetch('/api/auth/users/');
+}
+
+/** Exclui fisicamente a conta de outro usuário (só administrador, AKA-110). */
+export async function deleteUser(usuarioId) {
+  return apiFetch(`/api/auth/users/${encodeURIComponent(usuarioId)}/`, { method: 'DELETE' });
+}
+
+/** O titular exclui a própria conta, confirmando com a senha (AKA-110). */
+export async function excluirMinhaConta(senha) {
+  return apiFetch('/api/auth/me/', { method: 'DELETE', body: { senha } });
+}
+
 export async function createUser(userData) {
   return apiFetch('/api/auth/users/', {
     method: 'POST',
