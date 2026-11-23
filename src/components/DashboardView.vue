@@ -1,6 +1,6 @@
 <script setup>
   import { ref, computed, nextTick, onMounted, onBeforeUnmount, watch } from 'vue';
-  import { createUser, askQuestion } from '../services/api.js';
+  import { createUser, askQuestion, listUsers, deleteUser } from '../services/api.js';
   import { PERFIS_CADASTRO, cadastrarUsuario } from '../utils/cadastroUsuario.js';
   import { categoriaDaFonte } from '../utils/fonteResposta.js';
   import { listarMeus, listarPendentes } from '../services/documentos.js';
@@ -107,6 +107,46 @@
       matricula: 'AK-10001',
     },
   ]);
+
+  // Lista real de usuários e exclusão pelo administrador (AKA-110).
+  const confirmandoExclusao = ref(null);
+  const excluindoUsuario = ref(false);
+
+  const carregarUsuarios = async () => {
+    try {
+      const data = await listUsers();
+      if (Array.isArray(data?.users)) demoUsersList.value = data.users;
+    } catch {
+      // Sem a lista do servidor, a tela continua com a lista de demonstração.
+    }
+  };
+
+  const ehUsuarioAtual = (u) => String(u.id) === String(props.currentUser?.id);
+
+  const handleDeleteUser = async (u) => {
+    userModalSuccess.value = '';
+    userModalError.value = '';
+    if (confirmandoExclusao.value !== u.id) {
+      confirmandoExclusao.value = u.id;
+      return;
+    }
+    excluindoUsuario.value = true;
+    try {
+      await deleteUser(u.id);
+      demoUsersList.value = demoUsersList.value.filter((x) => x.id !== u.id);
+      userModalSuccess.value = `Conta de ${u.name} excluída.`;
+    } catch (e) {
+      userModalError.value = e?.message || 'Não foi possível excluir o usuário.';
+    } finally {
+      excluindoUsuario.value = false;
+      confirmandoExclusao.value = null;
+    }
+  };
+
+  watch(showUserModal, (aberto) => {
+    confirmandoExclusao.value = null;
+    if (aberto) carregarUsuarios();
+  });
 
   const handleCreateUser = async () => {
     userModalSuccess.value = '';
@@ -757,7 +797,7 @@
             <div class="modal-divider"></div>
 
             <!-- Lista de Usuários Existentes -->
-            <h4>Usuários de Demonstração</h4>
+            <h4>Usuários do Sistema</h4>
             <div class="users-list">
               <div v-for="u in demoUsersList" :key="u.id" class="user-item">
                 <div class="user-item-info">
@@ -767,6 +807,16 @@
                 <div class="user-item-badge">
                   <span class="user-role-tag">{{ u.role }}</span>
                   <span class="user-mat-tag">{{ u.matricula }}</span>
+                  <button
+                    v-if="!ehUsuarioAtual(u)"
+                    type="button"
+                    :class="['user-delete-btn', { confirmando: confirmandoExclusao === u.id }]"
+                    :disabled="excluindoUsuario"
+                    :aria-label="`Excluir a conta de ${u.name}`"
+                    @click="handleDeleteUser(u)"
+                  >
+                    {{ confirmandoExclusao === u.id ? 'Confirmar exclusão' : 'Excluir' }}
+                  </button>
                 </div>
               </div>
             </div>
@@ -1357,5 +1407,26 @@
     padding: 1.5rem;
     overflow-y: auto;
     flex: 1;
+  }
+
+  .user-delete-btn {
+    margin-top: 0.3rem;
+    padding: 0.2rem 0.55rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    border-radius: 6px;
+    border: 1px solid #fecaca;
+    background: #fff;
+    color: #b91c1c;
+    cursor: pointer;
+  }
+  .user-delete-btn.confirmando {
+    background: #dc2626;
+    border-color: #dc2626;
+    color: #fff;
+  }
+  .user-delete-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 </style>

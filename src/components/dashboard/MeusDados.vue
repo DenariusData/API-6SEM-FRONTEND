@@ -21,6 +21,7 @@
     erroNome,
   } from '../../utils/dadosPessoais.js';
   import AvisoPrivacidade from '../AvisoPrivacidade.vue';
+  import ExcluirConta from './ExcluirConta.vue';
 
   const props = defineProps({
     currentUser: { type: Object, required: true },
@@ -242,6 +243,8 @@
         >.
       </p>
     </aside>
+
+    <ExcluirConta />
 
     <AvisoPrivacidade v-if="avisoAberto" @fechar="avisoAberto = false" />
   </section>
