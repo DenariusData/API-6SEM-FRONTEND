@@ -22,6 +22,7 @@
   } from '../../utils/dadosPessoais.js';
   import AvisoPrivacidade from '../AvisoPrivacidade.vue';
   import ExcluirConta from './ExcluirConta.vue';
+  import TermosConsentimento from './TermosConsentimento.vue';
 
   const props = defineProps({
     currentUser: { type: Object, required: true },
@@ -243,6 +244,8 @@
         >.
       </p>
     </aside>
+
+    <TermosConsentimento />
 
     <ExcluirConta />
 

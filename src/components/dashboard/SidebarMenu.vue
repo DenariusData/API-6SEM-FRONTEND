@@ -3,7 +3,15 @@
   import logoUrl from '@/assets/logo.png';
   import { menusDoUsuario } from '@/utils/menus.js';
   import ExportarDados from './ExportarDados.vue';
-  import { Home, FileText, ShieldCheck, UserCheck, FolderOpen, ScrollText } from 'lucide-vue-next';
+  import {
+    Home,
+    FileText,
+    ShieldCheck,
+    UserCheck,
+    FolderOpen,
+    ScrollText,
+    FileCheck2,
+  } from 'lucide-vue-next';
 
   const props = defineProps({
     currentUser: {
@@ -40,6 +48,8 @@
         return UserCheck;
       case 'Auditoria':
         return ScrollText;
+      case 'Termos':
+        return FileCheck2;
       default:
         return FileText;
     }

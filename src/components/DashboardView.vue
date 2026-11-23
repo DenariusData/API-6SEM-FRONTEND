@@ -12,6 +12,7 @@
   import MeusDocumentos from './dashboard/MeusDocumentos.vue';
   import MeusDados from './dashboard/MeusDados.vue';
   import LogAuditoria from './dashboard/LogAuditoria.vue';
+  import TermosAdmin from './dashboard/TermosAdmin.vue';
   import UploadDocumento from './UploadDocumento.vue';
   import {
     ehAdministrador,
@@ -578,6 +579,7 @@
 
       <!-- Consulta do log de auditoria, só ADMINISTRADOR (AKA-81) -->
       <LogAuditoria v-else-if="activeMenu === 'Auditoria' && ehAdministrador(props.currentUser)" />
+      <TermosAdmin v-else-if="activeMenu === 'Termos' && ehAdministrador(props.currentUser)" />
 
       <DocumentsManager
         v-else-if="activeMenu === 'Documentos'"

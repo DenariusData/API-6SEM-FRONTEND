@@ -27,7 +27,15 @@ describe('Fluxo de login', () => {
       http.post(`${API}/auth/login/`, async ({ request }) => {
         corpoRecebido = await request.json();
         return HttpResponse.json({ token: 'jwt-de-teste', user: USUARIO });
-      })
+      }),
+      http.get(`${API}/auth/termos-pendentes/`, () =>
+        HttpResponse.json({
+          termos: [{ id: 1, titulo: 'Termo de Uso', texto: 'T', versao: '2.1', obrigatorio: true }],
+        })
+      ),
+      http.post(`${API}/auth/termos/aceite/`, () =>
+        HttpResponse.json({ pendentes: [], termos_pendentes: false })
+      )
     );
     const wrapper = mount(App);
 
@@ -37,9 +45,11 @@ describe('Fluxo de login', () => {
     expect(localStorage.getItem('akaer_token')).toBe('jwt-de-teste');
     await vi.waitFor(() => expect(wrapper.find('.btn-accept').exists()).toBe(true));
 
+    await vi.waitFor(() => expect(wrapper.find('.termo-check input').exists()).toBe(true));
+    await wrapper.find('.termo-check input').setValue(true);
     await wrapper.find('.btn-accept').trigger('click');
 
-    expect(wrapper.text()).toContain('Bem-vindo de volta, Carlos Eduardo');
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Bem-vindo de volta, Carlos Eduardo'));
   });
 
   it('mantém o usuário na tela de login quando a API recusa as credenciais', async () => {

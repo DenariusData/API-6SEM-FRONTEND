@@ -17,6 +17,7 @@ export const MENUS_IMPLEMENTADOS = [
   'Validação',
   'Gestão de Usuários',
   'Auditoria',
+  'Termos',
 ];
 
 /** Fallback quando o perfil não traz `allowed_menus`. */
@@ -68,8 +69,8 @@ export const menusDoUsuario = (user) => {
   }
 
   // Consulta do log de auditoria (AKA-81): só ADMINISTRADOR, sempre no fim.
-  list = list.filter((m) => m !== 'Auditoria');
-  if (ehAdministrador(user)) list.push('Auditoria');
+  list = list.filter((m) => m !== 'Auditoria' && m !== 'Termos');
+  if (ehAdministrador(user)) list.push('Auditoria', 'Termos');
 
   return list.filter((m) => MENUS_IMPLEMENTADOS.includes(m));
 };

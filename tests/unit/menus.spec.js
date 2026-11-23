@@ -23,7 +23,7 @@ describe('menu Auditoria (AKA-81)', () => {
   it('não repete e fica no fim', () => {
     const menus = menusDoUsuario({ ...admin, allowed_menus: ['Auditoria', 'Início'] });
     expect(menus.filter((m) => m === 'Auditoria')).toHaveLength(1);
-    expect(menus.at(-1)).toBe('Auditoria');
+    expect(menus.slice(-2)).toEqual(['Auditoria', 'Termos']);
   });
 
   it('reconhece o papel pelo código ou pelo nome', () => {
@@ -31,5 +31,14 @@ describe('menu Auditoria (AKA-81)', () => {
     expect(ehAdministrador({ role: 'Administrador' })).toBe(true);
     expect(ehAdministrador({ role: 'Engenharia', role_code: 'ENGENHARIA' })).toBe(false);
     expect(ehAdministrador(null)).toBe(false);
+  });
+});
+
+describe('menu Termos (AKA-109)', () => {
+  it('aparece só para o administrador', () => {
+    expect(menusDoUsuario({ role: 'Administrador', role_code: 'ADMINISTRADOR' })).toContain(
+      'Termos'
+    );
+    expect(menusDoUsuario({ role: 'Engenharia', role_code: 'ENGENHARIA' })).not.toContain('Termos');
   });
 });

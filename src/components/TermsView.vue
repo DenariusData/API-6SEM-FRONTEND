@@ -1,76 +1,116 @@
 <script setup>
+  /**
+   * Termos e consentimento (AKA-109).
+   * Mostra só os termos que o usuário ainda não respondeu. Obrigatórios
+   * precisam ser marcados para continuar; opcionais podem ficar desmarcados
+   * (e ser revogados depois em Meus dados). O aceite é gravado no servidor.
+   */
+  import { computed, onMounted, ref } from 'vue';
   import logoUrl from '@/assets/logo.png';
+  import { termosPendentes, responderTermos } from '../services/api.js';
 
   const emit = defineEmits(['accept', 'decline']);
 
-  const handleAccept = () => {
-    emit('accept');
+  const termos = ref([]);
+  const marcados = ref({});
+  const carregando = ref(true);
+  const enviando = ref(false);
+  const erro = ref('');
+
+  const obrigatoriosMarcados = computed(() =>
+    termos.value.filter((t) => t.obrigatorio).every((t) => marcados.value[t.id])
+  );
+
+  const carregar = async () => {
+    carregando.value = true;
+    erro.value = '';
+    try {
+      const data = await termosPendentes();
+      termos.value = data?.termos ?? [];
+      if (termos.value.length === 0) {
+        emit('accept');
+      }
+    } catch (e) {
+      erro.value = e?.message || 'Não foi possível carregar os termos.';
+    } finally {
+      carregando.value = false;
+    }
+  };
+
+  const handleAccept = async () => {
+    if (!obrigatoriosMarcados.value || enviando.value) return;
+    enviando.value = true;
+    erro.value = '';
+    try {
+      await responderTermos(
+        termos.value.map((t) => ({ termo_id: t.id, aceito: !!marcados.value[t.id] }))
+      );
+      emit('accept');
+    } catch (e) {
+      erro.value = e?.message || 'Não foi possível gravar o aceite. Tente novamente.';
+    } finally {
+      enviando.value = false;
+    }
   };
 
   const handleDecline = () => {
     emit('decline');
   };
+
+  onMounted(carregar);
 </script>
 
 <template>
   <div class="terms-overlay fade-in">
     <div class="terms-modal-card">
-      <!-- Top Header Row -->
       <div class="terms-header">
         <div class="terms-brand">
           <img :src="logoUrl" alt="AkaVision Logo" class="terms-logo-img" />
           <span class="terms-brand-name">AkaVision</span>
         </div>
-        <div class="terms-version-badge">VERSÃO 2.1 — SETEMBRO 2026</div>
       </div>
 
-      <!-- Main Title Block -->
       <div class="terms-title-block">
-        <h1 class="terms-title">Termos de Uso e Política de Privacidade</h1>
+        <h1 class="terms-title">Termos de Uso e Privacidade</h1>
         <p class="terms-subtitle">
-          AkaVision DocFlow — Sistema Crítico de Gestão Documental Aeroespacial
+          Leia e marque os termos para continuar. Os obrigatórios são necessários para usar o
+          sistema.
         </p>
       </div>
 
-      <!-- Scrollable Clauses Content Box -->
-      <div class="terms-content-box">
-        <div class="clause-item">
+      <div v-if="carregando" class="terms-content-box terms-estado">Carregando os termos…</div>
+
+      <div v-else class="terms-content-box">
+        <div v-for="termo in termos" :key="termo.id" class="clause-item">
           <h3 class="clause-title">
-            1. CLÁUSULA DE CONFIDENCIALIDADE E SEGURANÇA NACIONAL (ITAR/EAR)
+            {{ termo.titulo }}
+            <span class="termo-versao">v{{ termo.versao }}</span>
+            <span :class="['termo-tag', termo.obrigatorio ? 'termo-tag--obrig' : 'termo-tag--opc']">
+              {{ termo.obrigatorio ? 'Obrigatório' : 'Opcional' }}
+            </span>
           </h3>
-          <p class="clause-text">
-            O operador declara-se ciente de que todos os arquivos, projetos de aeronaves, diagramas
-            de empuxo estrutural e planos de voo gerenciados pela Akaer Engenharia S.A. estão
-            protegidos por rígidos protocolos de segurança nacional e controle de exportação de
-            tecnologia aeroespacial (regulamentos ITAR e EAR). Qualquer vazamento resultará em
-            sanções penais graves.
-          </p>
-        </div>
-
-        <div class="clause-item">
-          <h3 class="clause-title">2. LGPD E DADOS SENSÍVEIS DE ENGENHARIA</h3>
-          <p class="clause-text">
-            Todos os logs de acesso, modificação de ordens de serviço (OIs), despachos de cargas
-            críticas e assinaturas digitais são rastreados de forma inviolável. Os dados pessoais
-            dos colaboradores serão tratados em total conformidade com a Lei Geral de Proteção de
-            Dados (LGPD).
-          </p>
-        </div>
-
-        <div class="clause-item">
-          <h3 class="clause-title">3. AUDITORIA E RASTREABILIDADE TOTAL</h3>
-          <p class="clause-text">
-            Nenhuma modificação estrutural em documentos técnicos poderá ser excluída. O histórico
-            de versionamento do AkaVision constitui prova jurídica de conformidade com os
-            regulamentos da ANAC e do Comando da Aeronáutica.
-          </p>
+          <p class="clause-text termo-texto">{{ termo.texto }}</p>
+          <label class="termo-check">
+            <input v-model="marcados[termo.id]" type="checkbox" />
+            <span
+              >Li e aceito {{ termo.obrigatorio ? '' : '(opcional) ' }}"{{ termo.titulo }}"</span
+            >
+          </label>
         </div>
       </div>
 
-      <!-- Bottom Action Buttons -->
+      <p v-if="erro" class="termo-erro" role="alert">{{ erro }}</p>
+
       <div class="terms-actions">
         <button type="button" class="btn-decline" @click="handleDecline">Recusar Termos</button>
-        <button type="button" class="btn-accept" @click="handleAccept">Aceitar e Continuar</button>
+        <button
+          type="button"
+          class="btn-accept"
+          :disabled="carregando || enviando || !obrigatoriosMarcados"
+          @click="handleAccept"
+        >
+          {{ enviando ? 'Salvando…' : 'Aceitar e Continuar' }}
+        </button>
       </div>
     </div>
   </div>
@@ -255,5 +295,52 @@
   .btn-accept:hover {
     transform: translateY(-1px);
     box-shadow: 0 6px 20px rgba(126, 34, 206, 0.45);
+  }
+
+  .termo-versao {
+    margin-left: 0.4rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #64748b;
+  }
+  .termo-tag {
+    margin-left: 0.4rem;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 700;
+  }
+  .termo-tag--obrig {
+    background: #ede9fe;
+    color: #6d28d9;
+  }
+  .termo-tag--opc {
+    background: #f1f5f9;
+    color: #475569;
+  }
+  .termo-texto {
+    white-space: pre-line;
+  }
+  .termo-check {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.6rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #1e293b;
+    cursor: pointer;
+  }
+  .termo-erro {
+    margin: 0;
+    color: #b91c1c;
+    font-size: 0.85rem;
+  }
+  .terms-estado {
+    color: #64748b;
+  }
+  .btn-accept:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
   }
 </style>
