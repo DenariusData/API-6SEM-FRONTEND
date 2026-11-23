@@ -1,6 +1,8 @@
 <script setup>
   import { ref, computed, nextTick, onMounted, onBeforeUnmount, watch } from 'vue';
   import { createUser, askQuestion } from '../services/api.js';
+  import { PERFIS_CADASTRO, cadastrarUsuario } from '../utils/cadastroUsuario.js';
+  import { categoriaDaFonte } from '../utils/fonteResposta.js';
   import { listarMeus, listarPendentes } from '../services/documentos.js';
   import SidebarMenu from './dashboard/SidebarMenu.vue';
   import AnswerArea from './dashboard/AnswerArea.vue';
@@ -77,7 +79,7 @@
   const showUserModal = ref(false);
   const newUserName = ref('');
   const newUserEmail = ref('');
-  const newUserRole = ref('Engenharia');
+  const newUserRole = ref('ENGENHARIA');
   const newUserMatricula = ref('');
   const userModalSuccess = ref('');
   const userModalError = ref('');
@@ -110,27 +112,20 @@
     userModalSuccess.value = '';
     userModalError.value = '';
 
-    if (!newUserName.value.trim() || !newUserEmail.value.trim()) {
-      userModalError.value = 'Preencha o nome e o e-mail do novo usuário.';
+    const resultado = await cadastrarUsuario(createUser, {
+      nome: newUserName.value,
+      email: newUserEmail.value,
+      perfil: newUserRole.value,
+      matricula: newUserMatricula.value,
+    });
+
+    if (!resultado.ok) {
+      userModalError.value = resultado.mensagem;
       return;
     }
 
-    const payload = {
-      name: newUserName.value,
-      email: newUserEmail.value,
-      role: newUserRole.value,
-      matricula: newUserMatricula.value || `AK-${Math.floor(10000 + Math.random() * 90000)}`,
-    };
-
-    try {
-      const data = await createUser(payload);
-      demoUsersList.value.push(data.user);
-      userModalSuccess.value = `Usuário ${data.user.name} cadastrado com sucesso!`;
-    } catch {
-      demoUsersList.value.push({ ...payload, id: Date.now() });
-      userModalSuccess.value = `Usuário ${payload.name} cadastrado no ambiente de demonstração!`;
-    }
-
+    demoUsersList.value.push(resultado.usuario);
+    userModalSuccess.value = resultado.mensagem;
     newUserName.value = '';
     newUserEmail.value = '';
     newUserMatricula.value = '';
@@ -324,7 +319,7 @@
         page: fonte.pagina,
         section: fonte.secao || null,
         similarity: `${Math.round(fonte.similaridade * 100)}%`,
-        category: 'EverySpec',
+        category: categoriaDaFonte(fonte),
         cited: fonte.citada !== false,
         // Abre no visualizador seguro (AKA-61); nunca link direto para o arquivo
         documentId: fonte.documento_id || null,
@@ -742,9 +737,9 @@
               </div>
               <div class="form-row">
                 <select v-model="newUserRole" class="modal-select">
-                  <option value="Engenharia">Engenharia</option>
-                  <option value="Qualidade">Qualidade</option>
-                  <option value="Administrador">Administrador</option>
+                  <option v-for="p in PERFIS_CADASTRO" :key="p.codigo" :value="p.codigo">
+                    {{ p.nome }}
+                  </option>
                 </select>
                 <input
                   v-model="newUserMatricula"

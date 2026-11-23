@@ -1,4 +1,5 @@
 <script setup>
+  import { NIVEIS_SIGILO, rotuloSigilo } from '../../utils/sigilo.js';
   import { ref, onMounted } from 'vue';
   import { listarPendentes, detalhe, aprovar, devolver } from '../../services/documentos.js';
   import DocumentViewer from '../DocumentViewer.vue';
@@ -58,7 +59,7 @@
   // Estado de submissão
   const processandoAcao = ref(false);
 
-  const opcoesSigilo = ['PÚBLICO', 'INTERNO', 'RESTRITO', 'CONFIDENCIAL'];
+  const opcoesSigilo = NIVEIS_SIGILO;
 
   const carregarDocumentos = async () => {
     loading.value = true;
@@ -605,7 +606,7 @@
                 />
                 <div class="sigilo-option-header">
                   <span :class="['sigilo-dot', getSigiloClass(sig)]"></span>
-                  <strong>{{ sig }}</strong>
+                  <strong>{{ rotuloSigilo(sig) }}</strong>
                 </div>
                 <span
                   v-if="sig === documentoParaAprovar?.nivel_sigilo_sugerido"
