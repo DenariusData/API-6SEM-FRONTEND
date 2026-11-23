@@ -20,7 +20,12 @@
     if (user) {
       currentUser.value = user;
     }
-    currentScreen.value = 'terms';
+    // AKA-109: a tela de termos só aparece quando há termo sem resposta.
+    currentScreen.value = user?.termos_pendentes === false ? 'dashboard' : 'terms';
+  };
+
+  const onTermosPendentes = () => {
+    if (currentScreen.value === 'dashboard') currentScreen.value = 'terms';
   };
 
   const onTermsAccepted = () => {
@@ -43,10 +48,12 @@
 
   onMounted(() => {
     window.addEventListener('session-expired', onSessionExpired);
+    window.addEventListener('termos-pendentes', onTermosPendentes);
   });
 
   onUnmounted(() => {
     window.removeEventListener('session-expired', onSessionExpired);
+    window.removeEventListener('termos-pendentes', onTermosPendentes);
   });
 </script>
 

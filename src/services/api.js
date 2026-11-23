@@ -115,6 +115,16 @@ export async function apiFetch(endpoint, options = {}) {
     }
   }
 
+  // AKA-109: termo obrigatório novo durante a sessão. Avisa o App para mostrar
+  // a tela de termos de novo.
+  if (
+    response.status === 403 &&
+    data?.codigo === 'TERMOS_PENDENTES' &&
+    typeof window !== 'undefined'
+  ) {
+    window.dispatchEvent(new CustomEvent('termos-pendentes'));
+  }
+
   if (!response.ok) {
     const message = data?.detail || `Erro HTTP ${response.status}`;
     throw new ApiError(message, response.status, data);
@@ -257,6 +267,31 @@ export const confirmarEmail = (token) =>
     body: { token },
     skipAuthRedirect: true,
   });
+
+/** Termos ativos que o usuário ainda não respondeu (AKA-109). */
+export async function termosPendentes() {
+  return apiFetch('/api/auth/termos-pendentes/');
+}
+
+/** Grava as respostas aos termos: [{ termo_id, aceito }] (AKA-109). */
+export async function responderTermos(respostas) {
+  return apiFetch('/api/auth/termos/aceite/', { method: 'POST', body: { respostas } });
+}
+
+/** Termos ativos com a resposta do usuário, para Meus dados (AKA-109). */
+export async function meusTermos() {
+  return apiFetch('/api/auth/termos/');
+}
+
+/** Todos os termos, vigentes e antigos (só administrador, AKA-109). */
+export async function listarTermos() {
+  return apiFetch('/api/termos/');
+}
+
+/** Cadastra um termo ou uma nova versão (só administrador, AKA-109). */
+export async function cadastrarTermo(dados) {
+  return apiFetch('/api/termos/', { method: 'POST', body: dados });
+}
 
 /** Lista os usuários (só administrador). */
 export async function listUsers() {
