@@ -124,14 +124,10 @@ export async function apiFetch(endpoint, options = {}) {
 }
 
 /**
- * GET autenticado que devolve o corpo como Blob (ex.: páginas do visualizador AKA-61).
- * Erros seguem o mesmo padrão do apiFetch (ApiError com status e detail).
- *
- * @param {string} endpoint - Caminho da rota
- * @param {object} options - Opções do fetch (signal, skipAuthRedirect, etc.)
- * @returns {Promise<Blob>}
+ * GET autenticado que devolve a Response já validada (status 2xx).
+ * Base de apiFetchBlob e apiFetchArquivo; erros seguem o padrão do apiFetch.
  */
-export async function apiFetchBlob(endpoint, options = {}) {
+async function fetchBinario(endpoint, options = {}) {
   const { headers = {}, skipAuthRedirect = false, ...restOptions } = options;
 
   const url = endpoint.startsWith('http')
@@ -163,10 +159,58 @@ export async function apiFetchBlob(endpoint, options = {}) {
 
   if (!response.ok) {
     const data = await response.json().catch(() => null);
-    throw new ApiError(data?.detail || `Erro HTTP ${response.status}`, response.status, data);
+    const erro = new ApiError(
+      data?.detail || `Erro HTTP ${response.status}`,
+      response.status,
+      data
+    );
+    // 429: quantos segundos esperar antes de tentar de novo (cabeçalho Retry-After)
+    const retryAfter = Number(response.headers.get('Retry-After'));
+    if (Number.isFinite(retryAfter) && retryAfter > 0) erro.retryAfter = retryAfter;
+    throw erro;
   }
 
+  return response;
+}
+
+/**
+ * GET autenticado que devolve o corpo como Blob (ex.: páginas do visualizador AKA-61).
+ * Erros seguem o mesmo padrão do apiFetch (ApiError com status e detail).
+ *
+ * @param {string} endpoint - Caminho da rota
+ * @param {object} options - Opções do fetch (signal, skipAuthRedirect, etc.)
+ * @returns {Promise<Blob>}
+ */
+export async function apiFetchBlob(endpoint, options = {}) {
+  const response = await fetchBinario(endpoint, options);
   return response.blob();
+}
+
+/**
+ * Nome do arquivo no cabeçalho Content-Disposition (attachment; filename="x.pdf").
+ * @param {string|null} cabecalho
+ * @returns {string|null}
+ */
+export function nomeDoArquivo(cabecalho) {
+  if (!cabecalho) return null;
+  const utf8 = /filename\*=UTF-8''([^;]+)/i.exec(cabecalho);
+  if (utf8) return decodeURIComponent(utf8[1].trim());
+  const simples = /filename="?([^";]+)"?/i.exec(cabecalho);
+  return simples ? simples[1].trim() : null;
+}
+
+/**
+ * GET autenticado de um arquivo para download: devolve o Blob e o nome
+ * informado pelo servidor (null se o cabeçalho não vier).
+ *
+ * @returns {Promise<{ blob: Blob, nome: string|null }>}
+ */
+export async function apiFetchArquivo(endpoint, options = {}) {
+  const response = await fetchBinario(endpoint, options);
+  return {
+    blob: await response.blob(),
+    nome: nomeDoArquivo(response.headers.get('Content-Disposition')),
+  };
 }
 
 /**
@@ -192,11 +236,44 @@ export async function login(email, password) {
   });
 }
 
+// Meus dados (AKA-56 / backend AKA-57): nome e e-mail do próprio usuário.
+// A identidade vem do token; papel e demais campos não são editáveis aqui.
+export const meusDados = () => apiFetch('/api/auth/me/');
+
+/** PATCH só com o que mudou: { nome?, email? }. Trocar o e-mail só cria um e-mail pendente. */
+export const atualizarMeusDados = (campos) =>
+  apiFetch('/api/auth/me/', { method: 'PATCH', body: campos });
+
+export const reenviarConfirmacaoEmail = () =>
+  apiFetch('/api/auth/reenviar-confirmacao/', { method: 'POST' });
+
+/**
+ * Página /confirmar-email: o token do link é a credencial (o backend não pede
+ * login), e um 401 aqui não deve derrubar a sessão de quem estiver logado.
+ */
+export const confirmarEmail = (token) =>
+  apiFetch('/api/auth/confirmar-email/', {
+    method: 'POST',
+    body: { token },
+    skipAuthRedirect: true,
+  });
+
 export async function createUser(userData) {
   return apiFetch('/api/auth/users/', {
     method: 'POST',
     body: userData,
   });
+}
+
+/**
+ * Exportação dos dados pessoais do próprio usuário (AKA-75, LGPD art. 18).
+ * O backend identifica o usuário pelo token; não há parâmetro de id.
+ *
+ * @param {'json'|'pdf'} formato
+ * @returns {Promise<{ blob: Blob, nome: string|null }>}
+ */
+export function exportarMeusDados(formato) {
+  return apiFetchArquivo(`/api/auth/me/exportar/?formato=${encodeURIComponent(formato)}`);
 }
 
 // Documentos (Validação e Gestão AKA-94 / AKA-34)
@@ -242,13 +319,19 @@ export async function askQuestion(pergunta, idioma) {
 export default {
   apiFetch,
   apiFetchBlob,
+  apiFetchArquivo,
   apiGet,
   getToken,
   setToken,
   removeToken,
   notifySessionExpired,
   login,
+  meusDados,
+  atualizarMeusDados,
+  reenviarConfirmacaoEmail,
+  confirmarEmail,
   createUser,
+  exportarMeusDados,
   uploadDocument,
   listarTiposDocumento,
   listarAreas,

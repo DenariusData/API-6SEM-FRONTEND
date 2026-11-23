@@ -21,3 +21,7 @@ pnpm-debug.log*
 
 .cache/
 .vite/
+coverage/
+
+# Relatório dos testes enviado ao SonarQube Cloud (gerado no CI)
+test-report.xml

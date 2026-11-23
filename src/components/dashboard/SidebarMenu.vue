@@ -2,7 +2,8 @@
   import { computed } from 'vue';
   import logoUrl from '@/assets/logo.png';
   import { menusDoUsuario } from '@/utils/menus.js';
-  import { Home, FileText, ShieldCheck, UserCheck, FolderOpen } from 'lucide-vue-next';
+  import ExportarDados from './ExportarDados.vue';
+  import { Home, FileText, ShieldCheck, UserCheck, FolderOpen, ScrollText } from 'lucide-vue-next';
 
   const props = defineProps({
     currentUser: {
@@ -37,6 +38,8 @@
         return ShieldCheck;
       case 'Gestão de Usuários':
         return UserCheck;
+      case 'Auditoria':
+        return ScrollText;
       default:
         return FileText;
     }
@@ -81,6 +84,7 @@
       <span class="cred-tag"> PERFIL {{ currentUser?.role?.toUpperCase() || 'OPERACIONAL' }} </span>
       <h4 class="cred-level">Nível — {{ currentUser?.role || 'Engenharia' }}</h4>
       <p class="cred-info">Credencial {{ currentUser?.matricula || 'AK-90822' }} verificada.</p>
+      <ExportarDados />
     </div>
   </aside>
 </template>

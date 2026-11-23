@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import vue from '@vitejs/plugin-vue';
 import path from 'path';
 
@@ -13,5 +13,29 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
+  },
+  test: {
+    coverage: {
+      include: ['src/**'],
+    },
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'unit',
+          include: ['tests/unit/**/*.spec.js'],
+          environment: 'happy-dom',
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'integration',
+          include: ['tests/integration/**/*.spec.js'],
+          environment: 'jsdom',
+          setupFiles: ['tests/integration/setup.js'],
+        },
+      },
+    ],
   },
 });
