@@ -315,7 +315,7 @@
       erros.arquivo = `O arquivo tem ${tamanhoMB(arq.size)} MB. O limite é 10 MB.`;
     } else {
       form.arquivo = arq;
-      sugerirTipo(arq);
+      void sugerirTipo(arq); // trata os próprios erros e não trava o formulário
     }
   }
 
