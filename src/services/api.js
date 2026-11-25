@@ -334,6 +334,18 @@ export async function uploadDocument(formData) {
   });
 }
 
+// Tipo sugerido pelo classificador para o PDF escolhido (não grava nada).
+// Devolve { sugestao: { tipo_documento: {id, nome} | null, confianca, probabilidades } }
+// ou { sugestao: null, motivo } quando não há sugestão.
+export async function sugerirTipoDocumento(arquivo) {
+  const formData = new FormData();
+  formData.append('arquivo', arquivo);
+  return apiFetch('/api/documents/sugerir-tipo/', {
+    method: 'POST',
+    body: formData,
+  });
+}
+
 // Opções do formulário de upload (S2-32)
 export const listarTiposDocumento = () => apiGet('/api/tipos-documento/');
 export const listarAreas = () => apiGet('/api/areas/'); // traz categorias e subcategorias aninhadas

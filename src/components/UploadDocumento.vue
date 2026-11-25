@@ -10,6 +10,12 @@
    * devolvido (GET /api/documents/<id>/), mostra o comentário do validador no
    * topo e reenvia por PUT /api/documents/<id>/reenviar/. O backend valida só
    * os campos enviados, então vão apenas os alterados (e o PDF, se trocado).
+   *
+   * Tipo sugerido pela IA
+   * Ao escolher o PDF, POST /api/documents/sugerir-tipo/ devolve o tipo que o
+   * classificador acha (Técnica, Jurídica, Normativa ou Quantitativa). O
+   * select vem preenchido só se estava vazio ou com a sugestão anterior: o
+   * que o usuário escolheu nunca é trocado. Sem sugestão, nada muda.
    */
   import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
   import {
@@ -20,7 +26,7 @@
     RotateCw,
     MessageSquare,
   } from 'lucide-vue-next';
-  import { uploadDocument } from '../services/api.js';
+  import { sugerirTipoDocumento, uploadDocument } from '../services/api.js';
   import { detalhe, reenviar } from '../services/documentos.js';
   import {
     acharOpcao,
@@ -309,6 +315,43 @@
       erros.arquivo = `O arquivo tem ${tamanhoMB(arq.size)} MB. O limite é 10 MB.`;
     } else {
       form.arquivo = arq;
+      void sugerirTipo(arq); // trata os próprios erros e não trava o formulário
+    }
+  }
+
+  /* ---------- Tipo sugerido pela IA ---------- */
+  const sugestaoTipo = ref(null); // { value, nome, confianca }
+  const sugerindoTipo = ref(false);
+  let pedidoSugestao = 0;
+
+  const tipoEhSugerido = computed(
+    () => Boolean(sugestaoTipo.value) && form.tipo_documento === sugestaoTipo.value.value
+  );
+  const porcentagem = (p) => `${Math.round(p * 100)}%`;
+
+  async function sugerirTipo(arq) {
+    const pedido = ++pedidoSugestao;
+    // Só preenche se o select está vazio ou ainda com a sugestão do PDF anterior,
+    // e se o usuário não mexeu nele enquanto a sugestão carregava.
+    const tipoAntes = form.tipo_documento;
+    const podePreencher = !tipoAntes || tipoEhSugerido.value;
+    sugestaoTipo.value = null;
+    sugerindoTipo.value = true;
+    try {
+      const { sugestao } = await sugerirTipoDocumento(arq);
+      if (pedido !== pedidoSugestao) return; // outro PDF foi escolhido nesse meio-tempo
+      const tipo = sugestao?.tipo_documento;
+      const opcao = tipo && opcoes.tipos.find((o) => o.value === String(tipo.id));
+      if (!opcao) return;
+      sugestaoTipo.value = { value: opcao.value, nome: opcao.label, confianca: sugestao.confianca };
+      if (podePreencher && form.tipo_documento === tipoAntes) {
+        form.tipo_documento = opcao.value;
+        delete erros.tipo_documento;
+      }
+    } catch {
+      // Sugestão é ajuda, não requisito: se falhar, o usuário escolhe o tipo como antes.
+    } finally {
+      if (pedido === pedidoSugestao) sugerindoTipo.value = false;
     }
   }
 
@@ -421,6 +464,9 @@
   function resetar() {
     Object.assign(form, formVazio());
     limparErros();
+    pedidoSugestao++;
+    sugestaoTipo.value = null;
+    sugerindoTipo.value = false;
   }
 
   defineExpose({ resetar });
@@ -542,6 +588,23 @@
             <small v-if="semOpcoes('tipos')" class="falha"
               >Nenhuma opção cadastrada no sistema.</small
             >
+            <small v-if="sugerindoTipo" class="ajuda sugestao-tipo" role="status">
+              Lendo o PDF para sugerir o tipo…
+            </small>
+            <small
+              v-else-if="sugestaoTipo"
+              class="ajuda sugestao-tipo"
+              :class="{ 'sugestao-tipo--ativa': tipoEhSugerido }"
+              role="status"
+            >
+              <template v-if="tipoEhSugerido">
+                Sugerido pela IA ({{ porcentagem(sugestaoTipo.confianca) }} de confiança). Confira e
+                troque se não for.
+              </template>
+              <template v-else>
+                A IA sugeriu {{ sugestaoTipo.nome }} ({{ porcentagem(sugestaoTipo.confianca) }}).
+              </template>
+            </small>
             <small v-if="erros.tipo_documento" class="erro">{{ erros.tipo_documento }}</small>
           </div>
 
@@ -1045,6 +1108,10 @@
   .falha {
     font-size: 0.74rem;
     color: var(--suave);
+  }
+  .sugestao-tipo--ativa {
+    color: var(--roxo);
+    font-weight: 600;
   }
   .link {
     display: inline-flex;
