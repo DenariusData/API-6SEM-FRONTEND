@@ -42,9 +42,19 @@ npm run build
 
 Padrão completo (tipos aceitos, exemplos e regras): [Project Guidelines no API-6SEM](https://github.com/DenariusData/API-6SEM#project-guidelines).
 
+## Testes
+
+O modelo de testes unitários (o que é a unidade, o que testar, quando, quem confere, templates e mapa dos testes) está no [README do projeto](https://github.com/DenariusData/API-6SEM#tests). Aqui a unidade é o **componente Vue** (ou uma função em `src/utils`), montado sozinho com o `fetch` mockado. Todo PR preenche o **Plano de testes** do template.
+
+|                                            | Comando                    |
+| ------------------------------------------ | -------------------------- |
+| Testes unitários (`tests/unit`)            | `npm run test:unit`        |
+| Testes de integração (`tests/integration`) | `npm run test:integration` |
+| Cobertura dos dois                         | `npm run test:coverage`    |
+
 ## CI
 
-O workflow `Frontend CI` roda em todo PR/push para `main` e `develop`: instala dependências e executa o build.
+O workflow `Frontend CI` roda em todo PR/push para `main` e `develop`: lint (ESLint + Prettier), testes unitários, testes de integração, build e análise no SonarQube Cloud (cobertura e qualidade).
 
 ## Links
 
